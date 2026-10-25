@@ -1,0 +1,30 @@
+import { type ErrorClass, type MessageTier, type SpecificityCategory } from 'manifest-shared';
+export declare const MESSAGE_STATUS_FILTER_VALUES: readonly ["success", "ok", "failed", "cancelled", "error", "rate_limited", "fallback_error", "errors"];
+export type MessageStatusFilter = (typeof MESSAGE_STATUS_FILTER_VALUES)[number];
+export declare const MESSAGE_TRIGGER_FILTER_VALUES: readonly ["none", "fallback", "autofix"];
+export type MessageTriggerFilter = (typeof MESSAGE_TRIGGER_FILTER_VALUES)[number];
+export declare const MESSAGE_ORIGIN_FILTER_VALUES: readonly ["provider", "transport", "config", "policy", "internal", "request", "manifest"];
+export type MessageOriginFilter = (typeof MESSAGE_ORIGIN_FILTER_VALUES)[number];
+export declare class MessagesQueryDto {
+    range?: string;
+    provider?: string;
+    connections?: string;
+    model?: string;
+    service_type?: string;
+    cost_min?: number;
+    cost_max?: number;
+    limit?: number;
+    cursor?: string;
+    agent_name?: string;
+    status?: MessageStatusFilter;
+    attempts?: string;
+    trigger?: string;
+    origin?: MessageOriginFilter;
+    error_class?: ErrorClass;
+    routing_tier?: MessageTier;
+    specificity_category?: SpecificityCategory;
+    header_tier_id?: string;
+    include_total?: boolean;
+    cache_total?: boolean;
+    include_filter_options?: boolean;
+}

@@ -1,0 +1,1 @@
+{"version":3,"file":"fallback-encoding.d.ts","sourceRoot":"","sources":["../../src/fallback-encoding.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;GAaG;AACH,eAAO,MAAM,sBAAsB,OAAO,CAAC;AAE3C,MAAM,WAAW,aAAa;IAC5B,KAAK,EAAE,MAAM,CAAC;IACd,gBAAgB,CAAC,EAAE,MAAM,CAAC;CAC3B;AAED,wBAAgB,kBAAkB,CAAC,KAAK,EAAE,MAAM,GAAG,aAAa,CAQ/D;AAED,wBAAgB,mBAAmB,CAAC,KAAK,EAAE,aAAa,GAAG,MAAM,CAGhE"}

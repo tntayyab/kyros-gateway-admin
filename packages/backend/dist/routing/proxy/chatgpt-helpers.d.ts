@@ -1,0 +1,10 @@
+import { OpenAIMessage } from './proxy-types';
+export declare const DEFAULT_INSTRUCTIONS = "You are a helpful assistant.";
+export declare function convertAssistantToolCalls(toolCalls: unknown[]): Record<string, unknown>[];
+export declare function convertTools(tools: Record<string, unknown>[]): Record<string, unknown>[];
+export declare function convertContent(content: unknown, role: string): unknown;
+export declare function extractInstructions(messages: OpenAIMessage[]): string;
+export declare function extractTextContent(content: unknown): string | null;
+export declare function isObjectRecord(value: unknown): value is Record<string, unknown>;
+export declare function safeParse(str: string): Record<string, unknown> | null;
+export declare function formatSSE(choice: Record<string, unknown>, model: string, usage?: Record<string, number>): string;

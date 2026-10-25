@@ -1,0 +1,122 @@
+import { Repository } from 'typeorm';
+import type { AuthType, ModelRoute } from 'manifest-shared';
+import { AgentModelParamsService } from '../routing-core/agent-model-params.service';
+import { ProviderParamSpecService } from '../routing-core/provider-param-spec.service';
+import { AutofixService } from '../autofix/autofix.service';
+import { type AutofixRecord } from '../autofix/autofix.types';
+export interface ParamMergeContext {
+    agentId: string;
+    scopeKey: string;
+}
+interface ForwardProviderOptions {
+    provider: string;
+    apiKey: string;
+    model: string;
+    body: Record<string, unknown>;
+    resolveChatBody?: ResolveChatBody;
+    stream: boolean;
+    sessionKey: string;
+    reasoningCacheKey?: string;
+    providerCacheKey?: string;
+    signal?: AbortSignal;
+    authType?: string;
+    rawApiKey?: string;
+    providerKeyLabel?: string;
+    agentId?: string;
+    tenantId?: string;
+    resourceUrl?: string;
+    providerRegion?: string | null;
+    apiMode?: ProxyApiMode;
+    signatureLookup?: SignatureLookup;
+    thinkingLookup?: ThinkingBlockLookup;
+    clientAnthropicBeta?: string | string[];
+    paramMergeContext?: ParamMergeContext;
+    tenantProviderId?: string | null;
+    startProviderAttempt?: StartProviderAttempt;
+}
+import { ProviderKeyService } from '../routing-core/provider-key.service';
+import { CustomProvider } from '../../entities/custom-provider.entity';
+import { OpenaiOauthService } from '../oauth/openai/openai-oauth.service';
+import { MinimaxOauthService } from '../oauth/minimax/minimax-oauth.service';
+import { AnthropicOauthService } from '../oauth/anthropic/anthropic-oauth.service';
+import { GeminiOauthService } from '../oauth/gemini/gemini-oauth.service';
+import { KiroOauthService } from '../oauth/kiro/kiro-oauth.service';
+import { XaiOauthService } from '../oauth/xai/xai-oauth.service';
+import { ModelPricingCacheService } from '../../model-prices/model-pricing-cache.service';
+import { ProviderClient, ForwardResult } from './provider-client';
+import { CopilotTokenService } from './copilot-token.service';
+import { ReasoningContentCache } from './reasoning-content-cache';
+import { normalizeProviderModel } from '../../common/utils/anthropic-model-id';
+import type { SignatureLookup, ThinkingBlockLookup, ResolveChatBody, ProviderAttemptRef, StartProviderAttempt } from './proxy-types';
+import type { ProxyApiMode } from './proxy-types';
+export interface FailedFallback {
+    model: string;
+    provider: string;
+    fallbackIndex: number;
+    status: number;
+    errorBody: string;
+    authType?: AuthType;
+    tenantProviderId?: string | null;
+    keyLabel?: string;
+    attempt?: ProviderAttemptRef;
+    providerCallStarted?: boolean;
+    autofix?: AutofixRecord;
+    autofixRole?: 'original' | 'retry';
+}
+export declare class ProxyFallbackService {
+    private readonly providerKeyService;
+    private readonly customProviderRepo;
+    private readonly openaiOauth;
+    private readonly minimaxOauth;
+    private readonly anthropicOauth;
+    private readonly geminiOauth;
+    private readonly kiroOauth;
+    private readonly xaiOauth;
+    private readonly providerClient;
+    private readonly copilotToken;
+    private readonly pricingCache;
+    private readonly modelParamsService;
+    private readonly providerParamSpecs;
+    private readonly reasoningCache;
+    private readonly autofixService;
+    private readonly logger;
+    private readonly rateLimitCooldowns;
+    private readonly credentialRejections;
+    constructor(providerKeyService: ProviderKeyService, customProviderRepo: Repository<CustomProvider>, openaiOauth: OpenaiOauthService, minimaxOauth: MinimaxOauthService, anthropicOauth: AnthropicOauthService, geminiOauth: GeminiOauthService, kiroOauth: KiroOauthService, xaiOauth: XaiOauthService, providerClient: ProviderClient, copilotToken: CopilotTokenService, pricingCache: ModelPricingCacheService, modelParamsService: AgentModelParamsService, providerParamSpecs: ProviderParamSpecService, reasoningCache: ReasoningContentCache, autofixService: AutofixService);
+    private applyParamMerge;
+    tryFallbacks(agentId: string, tenantId: string, fallbackModels: string[], body: Record<string, unknown>, stream: boolean, sessionKey: string, primaryModel: string, signal?: AbortSignal, primaryProvider?: string, primaryAuthType?: string, signatureLookup?: SignatureLookup, thinkingLookup?: ThinkingBlockLookup, apiMode?: ProxyApiMode, resolveChatBody?: ResolveChatBody, fallbackRoutes?: ModelRoute[] | null, paramMergeContext?: ParamMergeContext, startProviderAttempt?: StartProviderAttempt, credentialDashboardUrl?: string, providerCacheKey?: string, reasoningCacheKey?: string, clientAnthropicBeta?: string | string[]): Promise<{
+        success: {
+            forward: ForwardResult;
+            model: string;
+            provider: string;
+            fallbackIndex: number;
+            authType?: AuthType;
+            keyLabel?: string;
+            tenantProviderId: string | null;
+            autofix?: AutofixRecord;
+        } | null;
+        failures: FailedFallback[];
+    }>;
+    private maybeHealFallback;
+    private warmUpStreamBody;
+    private routeCredentialDeps;
+    tryForwardToProvider(opts: ForwardProviderOptions): Promise<ForwardResult>;
+    private bufferNonStreamBody;
+    retryWireBody(forward: ForwardResult, healedBody: Record<string, unknown>, opts?: Pick<ForwardProviderOptions, 'provider' | 'model' | 'authType' | 'agentId' | 'tenantProviderId' | 'providerKeyLabel' | 'startProviderAttempt' | 'signal'> & {
+        stream?: boolean;
+    }): Promise<ForwardResult>;
+    private getActiveRateLimitCooldown;
+    private buildRateLimitCooldownForward;
+    private buildCredentialRejectedForward;
+    private buildLocalSkipForward;
+    private credentialRef;
+    private recordRateLimitCooldown;
+    private recordRateLimitCooldownForKey;
+    private evictExpiredRateLimitCooldowns;
+    private evictOldestRateLimitCooldown;
+    private parseRetryAfterMs;
+    private rateLimitCooldownKey;
+    private retryOAuthSubscriptionAfterRejectedToken;
+    private forwardToProvider;
+}
+export { normalizeProviderModel };

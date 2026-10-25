@@ -1,0 +1,50 @@
+import { collectChatGptSseResponse as chatGptSseCollector, convertChatGptResponse as chatGptResponseConverter, createChatGptStreamTransformer as chatGptStreamTransformerFactory, convertGoogleResponse as googleResponseConverter, convertGoogleStreamChunk as googleStreamChunkConverter, convertAnthropicResponse as anthropicResponseConverter, convertAnthropicStreamChunk as anthropicStreamChunkConverter, createAnthropicTransformer, createReasoningContentStreamTransformer as reasoningContentStreamTransformer } from './provider-client-converters';
+import { ForwardOptions, ProxyApiMode, ProviderWireFormat, type ProviderAttemptRef } from './proxy-types';
+import { CodexSessionAffinity } from './codex-session-affinity';
+import { ModelsDevReasoningCatalog } from './reasoning-model-catalog';
+import { ResponsesToolNames } from './responses-tools';
+import { OpencodeGoCatalogService } from '../../model-discovery/opencode-go-catalog.service';
+import { ProviderModelRegistryService } from '../../model-discovery/provider-model-registry.service';
+export interface ForwardResult {
+    response: Response;
+    wireRequestBody?: Record<string, unknown>;
+    wireRequestUrl?: string;
+    wireFormat?: ProviderWireFormat;
+    wireApiMode?: ProxyApiMode;
+    retryWireBody?: (body: Record<string, unknown>, attempt?: ProviderAttemptRef) => Promise<ForwardResult>;
+    providerCallStarted?: boolean;
+    attempt?: ProviderAttemptRef;
+    isGoogle: boolean;
+    isAnthropic: boolean;
+    isChatGpt: boolean;
+    isResponses?: boolean;
+    isCodeAssist?: boolean;
+    responsesTextFormat?: Record<string, unknown>;
+    responsesToolNames?: ResponsesToolNames;
+}
+export declare class ProviderClient {
+    private readonly opencodeGoCatalog?;
+    private readonly modelRegistry?;
+    private readonly reasoningCatalog?;
+    private readonly logger;
+    private readonly codexAffinity;
+    constructor(opencodeGoCatalog?: OpencodeGoCatalogService | undefined, modelRegistry?: ProviderModelRegistryService | undefined, codexAffinity?: CodexSessionAffinity, reasoningCatalog?: ModelsDevReasoningCatalog | undefined);
+    private modelSupportsReasoning;
+    forward(opts: ForwardOptions): Promise<ForwardResult>;
+    private resolveEndpoint;
+    private resolveOpencodeGoFormat;
+    private isKnownOpencodeGoAnthropicFamily;
+    private resolveCopilotEndpointFromMetadata;
+    private getCopilotSupportedEndpoints;
+    private buildRequest;
+    private executeFetch;
+    readonly convertChatGptResponse: typeof chatGptResponseConverter;
+    readonly createChatGptStreamTransformer: typeof chatGptStreamTransformerFactory;
+    readonly convertGoogleResponse: typeof googleResponseConverter;
+    readonly convertGoogleStreamChunk: typeof googleStreamChunkConverter;
+    readonly convertAnthropicResponse: typeof anthropicResponseConverter;
+    readonly convertAnthropicStreamChunk: typeof anthropicStreamChunkConverter;
+    readonly createAnthropicStreamTransformer: typeof createAnthropicTransformer;
+    readonly createReasoningContentStreamTransformer: typeof reasoningContentStreamTransformer;
+    readonly collectChatGptSseResponse: typeof chatGptSseCollector;
+}

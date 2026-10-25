@@ -1,0 +1,28 @@
+export const TIER_COLORS = [
+    'slate',
+    'gray',
+    'zinc',
+    'stone',
+    'red',
+    'orange',
+    'amber',
+    'yellow',
+    'lime',
+    'green',
+    'emerald',
+    'teal',
+    'cyan',
+    'sky',
+    'blue',
+    'indigo',
+    'violet',
+    'purple',
+    'fuchsia',
+    'pink',
+    'rose',
+    'coral',
+    'brown',
+    'navy',
+];
+export const DEFAULT_TIER_COLOR = 'indigo';
+//# sourceMappingURL=tier-colors.js.map

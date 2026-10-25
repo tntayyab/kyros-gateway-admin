@@ -1,0 +1,33 @@
+import { ObjectLiteral, SelectQueryBuilder } from 'typeorm';
+import type { AgentScope } from './analytics-scope.service';
+export interface MetricWithTrend {
+    value: number;
+    trend_pct: number;
+    sub_values?: Record<string, number>;
+}
+export declare function formatTimestamp(d: Date): string;
+export declare function computeTrend(current: number, previous: number): number;
+export declare const ERROR_MESSAGE_STATUSES: readonly ["error", "fallback_error", "rate_limited", "auto_fixed", "failed"];
+export declare const SUCCESS_MESSAGE_STATUSES: readonly ["ok", "success"];
+export declare const SUCCESS_STATUS_SQL_LIST: string;
+export declare function sqlIsSuccessStatus(column: string): string;
+export declare function sqlIsFailedStatus(column: string): string;
+export declare function sqlIsCompletedStatus(column: string): string;
+export declare function sqlCountMessages(alias?: string): string;
+export declare const MANIFEST_ORIGIN_PREDICATE: string;
+export declare function downsample(data: number[], targetLen: number): number[];
+export declare function addTenantFilter<T extends ObjectLiteral>(qb: SelectQueryBuilder<T>, tenantId: string | null, agentScope?: AgentScope, alias?: string): SelectQueryBuilder<T>;
+export declare function sqlAgentScope(alias: string, parameter: string, agentScope?: AgentScope): string;
+export declare function sqlExcludePlayground(alias: string): string;
+export declare const EXCLUDE_PLAYGROUND_AGENTS_PREDICATE: string;
+export declare function excludePlaygroundAgents<T extends ObjectLiteral>(qb: SelectQueryBuilder<T>): SelectQueryBuilder<T>;
+export declare const EXCLUDE_DIRECT_ATTEMPTS_PREDICATE = "at.routing_reason IS DISTINCT FROM 'direct'";
+export declare function excludeDirectAttempts<T extends ObjectLiteral>(qb: SelectQueryBuilder<T>): SelectQueryBuilder<T>;
+export declare function sqlExcludeDirectRequests(alias: string): string;
+export declare function filterByKeyLabel<T extends ObjectLiteral>(qb: SelectQueryBuilder<T>, label: string | null | undefined): SelectQueryBuilder<T>;
+export declare function filterByTenantProviderId<T extends ObjectLiteral>(qb: SelectQueryBuilder<T>, tenantProviderId: string): SelectQueryBuilder<T>;
+export declare function scopeToConnection<T extends ObjectLiteral>(qb: SelectQueryBuilder<T>, tenantProviderId: string | undefined, label: string | null | undefined): SelectQueryBuilder<T>;
+export declare const CUSTOM_PROVIDER_JOIN_CONDITION = "at.provider = 'custom:' || cp.id";
+export declare const PROVIDER_SERIES_KEY_EXPR = "CASE WHEN at.provider LIKE 'custom:%' THEN COALESCE(cp.name, 'Deleted provider') ELSE at.provider END";
+export declare const MESSAGE_ROW_SELECT_ALIASES: readonly ["id", "timestamp", "agent_name", "model", "provider", "display_name", "input_tokens", "output_tokens", "status", "total_tokens", "cost", "routing_tier", "routing_reason", "specificity_category", "error_message", "error_code", "error_origin", "error_class", "error_http_status", "auth_type", "fallback_from_model", "fallback_index", "feedback_rating", "header_tier_id", "header_tier_name", "header_tier_color", "provider_key_label", "custom_provider_name", "autofix_applied", "autofix_role"];
+export declare function selectMessageRowColumns<T extends ObjectLiteral>(qb: SelectQueryBuilder<T>, costExpr: string): SelectQueryBuilder<T>;

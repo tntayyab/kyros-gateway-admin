@@ -1,0 +1,1 @@
+{"version":3,"file":"anthropic-oauth.config.js","sourceRoot":"","sources":["../../../../src/routing/oauth/anthropic/anthropic-oauth.config.ts"],"names":[],"mappings":";;;AAYa,QAAA,eAAe,GAAG;IAC7B,SAAS,EAAE,sCAAsC;IACjD,aAAa,EAAE,mCAAmC;IAClD,SAAS,EAAE,0CAA0C;IACrD,YAAY,EAAE,mDAAmD;IACjE,KAAK,EAAE,gDAAgD;IAEvD,YAAY,EAAE,EAAE,GAAG,EAAE,GAAG,IAAI;CACpB,CAAC"}

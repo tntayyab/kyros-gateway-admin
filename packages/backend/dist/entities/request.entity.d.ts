@@ -1,0 +1,31 @@
+import type { CallerAttribution } from '../routing/proxy/caller-classifier';
+import type { ProxyApiMode } from '../routing/proxy/proxy-types';
+import type { AutofixStatus } from 'manifest-shared';
+export declare class ManifestRequest {
+    id: string;
+    tenant_id: string | null;
+    agent_id: string | null;
+    user_id: string | null;
+    agent_name: string | null;
+    trace_id: string | null;
+    session_key: string | null;
+    session_id: string | null;
+    timestamp: string;
+    duration_ms: number | null;
+    status: string;
+    agent_usage_rolled_up_at?: string | null;
+    autofix_status: AutofixStatus | null;
+    error_message: string | null;
+    error_http_status: number | null;
+    error_code: string | null;
+    error_origin: string | null;
+    error_class: string | null;
+    requested_model: string | null;
+    api_mode: ProxyApiMode | null;
+    caller_attribution: CallerAttribution | null;
+    request_headers: Record<string, string> | null;
+    request_params: object | null;
+    feedback_rating: string | null;
+    feedback_tags: string | null;
+    feedback_details: string | null;
+}

@@ -1,0 +1,35 @@
+import { Repository } from 'typeorm';
+import type { AuthType, ModelRoute } from 'manifest-shared';
+import { TenantProvider } from '../../entities/tenant-provider.entity';
+import { AgentEnabledProvider } from '../../entities/agent-enabled-provider.entity';
+import { ModelPricingCacheService } from '../../model-prices/model-pricing-cache.service';
+import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
+import { CachedProviderKey, RoutingCacheService } from './routing-cache.service';
+import { ProviderService } from './provider.service';
+export declare const SYNTHETIC_OLLAMA_PROVIDER_ID = "ollama";
+export declare class ProviderKeyService {
+    private readonly providerRepo;
+    private readonly pricingCache;
+    private readonly discoveryService;
+    private readonly routingCache;
+    private readonly providerService;
+    private readonly enabledProviderRepo;
+    private readonly logger;
+    private readonly stalePinWarnings;
+    constructor(providerRepo: Repository<TenantProvider>, pricingCache: ModelPricingCacheService, discoveryService: ModelDiscoveryService, routingCache: RoutingCacheService, providerService: ProviderService, enabledProviderRepo?: Repository<AgentEnabledProvider> | null);
+    getProviderKeys(tenantId: string, provider: string, authType?: AuthType, agentId?: string): Promise<CachedProviderKey[]>;
+    getDefaultKeyLabel(tenantId: string, provider: string, authType?: AuthType, agentId?: string): Promise<string | undefined>;
+    selectProviderKey(tenantId: string, provider: string, authType?: AuthType, label?: string, agentId?: string): Promise<CachedProviderKey | null>;
+    hasRouteCredentials(tenantId: string, route: ModelRoute, agentId?: string): Promise<boolean>;
+    getProviderApiKey(tenantId: string, provider: string, authType?: AuthType, label?: string, agentId?: string): Promise<string | null>;
+    getProviderKeyId(tenantId: string, provider: string, authType?: AuthType, label?: string, agentId?: string): Promise<string | null>;
+    getAuthType(tenantId: string, provider: string, excludeAuthTypes?: Set<string>, agentId?: string): Promise<AuthType>;
+    hasActiveProvider(tenantId: string, provider: string, agentId?: string): Promise<boolean>;
+    getProviderRegion(tenantId: string, provider: string, authType?: AuthType, label?: string, agentId?: string): Promise<string | null>;
+    findProviderForModel(tenantId: string, model: string, agentId?: string): Promise<string | undefined>;
+    private resolveProviderKeys;
+    private decryptOne;
+    isModelAvailable(tenantId: string, model: string, agentId?: string): Promise<boolean>;
+    isRouteAvailable(tenantId: string, route: ModelRoute, agentId?: string): Promise<boolean>;
+    private filterProvidersForAgent;
+}

@@ -1,0 +1,22 @@
+import { OAuthTokenBlob } from '../core';
+export { ABSOLUTE_TIME_THRESHOLD_MS, toAbsoluteExpiryTimestamp } from '../core/device-flow';
+export declare const MINIMAX_BASE_URLS: {
+    readonly global: "https://api.minimax.io";
+    readonly cn: "https://api.minimaxi.com";
+};
+export type MinimaxRegion = keyof typeof MINIMAX_BASE_URLS;
+export declare const DEFAULT_REGION: MinimaxRegion;
+export declare const DEFAULT_BASE_URL: "https://api.minimax.io";
+export declare const DEFAULT_RESOURCE_URL: string;
+export declare const DEFAULT_POLL_INTERVAL_MS = 2000;
+export declare const MINIMAX_API_KEY_REGION_VALIDATION_MESSAGE = "MiniMax API-key region must be one of: global, cn";
+export declare function isMinimaxRegion(value: string | undefined): value is MinimaxRegion;
+export declare function getMinimaxBaseUrl(region?: MinimaxRegion): string;
+export declare function buildMinimaxCodeUrl(baseUrl: string): string;
+export declare function buildMinimaxTokenUrl(baseUrl: string): string;
+export declare function buildMinimaxResourceUrl(baseUrl: string): string;
+export declare function normalizeMinimaxVerificationUri(verificationUri: string): string;
+export declare function getMinimaxResourceUrl(resourceUrl?: string): string | null;
+export declare function getMinimaxOauthBaseUrl(resourceUrl?: string): string;
+export declare function toPollIntervalMs(interval?: number): number;
+export declare function isOAuthTokenBlob(value: unknown): value is OAuthTokenBlob;

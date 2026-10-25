@@ -1,0 +1,42 @@
+import { OnModuleInit } from '@nestjs/common';
+import { DataSource, Repository } from 'typeorm';
+import type { BillingEmailPreferences, BillingPlanStatus, BillingStatus, Plan, PlanLimits } from 'manifest-shared';
+import { Tenant } from '../entities/tenant.entity';
+import type { TenantContext } from '../common/decorators/tenant-context.decorator';
+export declare class PlanService implements OnModuleInit {
+    private readonly tenantRepo;
+    private readonly dataSource;
+    private readonly logger;
+    private priceCache;
+    private lastCountFailureWarnAtMs;
+    private suppressedCountFailureWarns;
+    private lastLimitFailureWarnAtMs;
+    private suppressedLimitFailureWarns;
+    private readonly requestUsageInitializations;
+    constructor(tenantRepo: Repository<Tenant>, dataSource: DataSource);
+    onModuleInit(): Promise<void>;
+    private getBillingSnapshot;
+    private findTenant;
+    getPlan(ctx: TenantContext): Promise<Plan>;
+    getPlanStatus(ctx: TenantContext): Promise<BillingPlanStatus>;
+    private limitsForSnapshot;
+    getLimits(ctx: TenantContext, opts?: {
+        failOpen?: boolean;
+    }): Promise<PlanLimits>;
+    private monthStartMsUtc;
+    private nextMonthStartUtc;
+    countRequestsSince(tenantId: string | null, monthStartMs: number): Promise<number>;
+    private scheduleRequestUsageInitialization;
+    private initializeRequestUsage;
+    private readRequestStorageTimeZone;
+    countRequestsThisMonth(tenantId: string | null): Promise<number>;
+    private warnCountFailureThrottled;
+    private warnLimitFailureThrottled;
+    assertWithinRequestLimit(ctx: TenantContext): Promise<void>;
+    getBillingStatus(ctx: TenantContext): Promise<BillingStatus>;
+    getBillingEmailPreferences(ctx: TenantContext): Promise<BillingEmailPreferences>;
+    updateBillingEmailPreferences(ctx: TenantContext, preferences: BillingEmailPreferences): Promise<BillingEmailPreferences>;
+    private getProPrice;
+    private stripePriceToBillingPrice;
+    private currencyMinorUnitDivisor;
+}

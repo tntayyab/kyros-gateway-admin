@@ -1,0 +1,1 @@
+{"version":3,"file":"bedrock-fixtures.js","sourceRoot":"","sources":["../../../src/routing/__tests__/bedrock-fixtures.ts"],"names":[],"mappings":";;AAAA,0DAKC;AALD,SAAgB,uBAAuB,CAAC,MAAc;IACpD,MAAM,OAAO,GACX,oDAAoD;QACpD,6CAA6C,MAAM,2BAA2B,CAAC;IACjF,OAAO,mBAAmB,MAAM,CAAC,IAAI,CAAC,OAAO,CAAC,CAAC,QAAQ,CAAC,QAAQ,CAAC,EAAE,CAAC;AACtE,CAAC"}

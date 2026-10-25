@@ -1,0 +1,16 @@
+import type { ModelRoute, AuthType } from 'manifest-shared';
+import type { TierAssignment } from '../../entities/tier-assignment.entity';
+import type { SpecificityAssignment } from '../../entities/specificity-assignment.entity';
+import type { HeaderTier } from '../../entities/header-tier.entity';
+import type { DiscoveredModel } from '../../model-discovery/model-fetcher';
+type AnyOverrideRow = Pick<TierAssignment | SpecificityAssignment | HeaderTier, 'override_route' | 'fallback_routes'>;
+type AnyAutoRow = Pick<TierAssignment | SpecificityAssignment, 'auto_assigned_route'>;
+export declare function readOverrideRoute(row: AnyOverrideRow): ModelRoute | null;
+export declare function readAutoAssignedRoute(row: AnyAutoRow): ModelRoute | null;
+export declare function readFallbackRoutes(row: AnyOverrideRow): ModelRoute[] | null;
+export declare function effectiveRoute(row: AnyOverrideRow & AnyAutoRow): ModelRoute | null;
+export declare function explicitRoute(model: string, provider: string | undefined, authType: AuthType | undefined, keyLabel?: string | null): ModelRoute | null;
+export declare function unambiguousRoute(model: string, available: DiscoveredModel[], keyLabel?: string | null): ModelRoute | null;
+export declare function subscriptionPreferredRoute(model: string, available: DiscoveredModel[]): ModelRoute | null;
+export declare function routeMatches(a: ModelRoute, b: ModelRoute): boolean;
+export {};

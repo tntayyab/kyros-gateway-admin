@@ -1,0 +1,75 @@
+import { Repository, EntityManager } from 'typeorm';
+import { TenantProvider } from '../../entities/tenant-provider.entity';
+import { AgentEnabledProvider } from '../../entities/agent-enabled-provider.entity';
+import { TierAssignment } from '../../entities/tier-assignment.entity';
+import { SpecificityAssignment } from '../../entities/specificity-assignment.entity';
+import { Agent } from '../../entities/agent.entity';
+import { HeaderTier } from '../../entities/header-tier.entity';
+import { ModelPricingCacheService } from '../../model-prices/model-pricing-cache.service';
+import { RoutingCacheService } from './routing-cache.service';
+import { type AuthType } from 'manifest-shared';
+export declare class ProviderService {
+    private readonly providerRepo;
+    private readonly tierRepo;
+    private readonly specificityRepo;
+    private readonly agentRepo;
+    private readonly headerTierRepo;
+    private readonly pricingCache;
+    private readonly routingCache;
+    private readonly enabledProviderRepo;
+    private readonly logger;
+    constructor(providerRepo: Repository<TenantProvider>, tierRepo: Repository<TierAssignment>, specificityRepo: Repository<SpecificityAssignment>, agentRepo: Repository<Agent>, headerTierRepo: Repository<HeaderTier>, pricingCache: ModelPricingCacheService, routingCache: RoutingCacheService, enabledProviderRepo?: Repository<AgentEnabledProvider> | null);
+    private tenantProviderRepo;
+    private agentEnabledProviderRepo;
+    private agentMessageRepo;
+    recalculateTiers(agentId: string, tenantId: string): Promise<void>;
+    recalculateTiersForTenant(tenantId: string): Promise<void>;
+    getProviders(tenantId: string): Promise<TenantProvider[]>;
+    enableProviderForAgent(agentId: string, userProviderId: string, manager?: EntityManager): Promise<void>;
+    enableAllProvidersForAgent(agentId: string, tenantId: string): Promise<void>;
+    enableProviderForAllAgents(tenantId: string, userProviderId: string, manager?: EntityManager): Promise<void>;
+    private fanOutIfReactivated;
+    private deleteProviderAccess;
+    getFreshSubscriptionCredential(tenantId: string, provider: string, label?: string): Promise<string | null>;
+    withSubscriptionCredentialLock<T>(tenantId: string, provider: string, label: string | undefined, fn: (ops: {
+        readFreshRaw: () => Promise<string | null>;
+        writeRaw: (raw: string) => Promise<void>;
+    }) => Promise<T>): Promise<T>;
+    upsertProvider(agentId: string | null, tenantId: string, provider: string, apiKey?: string, authType?: AuthType, region?: string, label?: string, createdByUserId?: string | null, manager?: EntityManager): Promise<{
+        provider: TenantProvider;
+        isNew: boolean;
+    }>;
+    private upsertProviderWithLabel;
+    renameKey(agentId: string | null, tenantId: string, provider: string, authType: AuthType, currentLabel: string, newLabel: string): Promise<TenantProvider>;
+    reorderKeys(agentId: string, tenantId: string, provider: string, authType: AuthType, orderedLabels: string[]): Promise<TenantProvider[]>;
+    private resolveProviderRegion;
+    private resolveSubscriptionEndpointRegion;
+    private getQwenDetectionKey;
+    private detectQwenRegionOrThrow;
+    registerSubscriptionProvider(agentId: string, tenantId: string, provider: string, createdByUserId?: string | null): Promise<{
+        isNew: boolean;
+    }>;
+    private afterProviderChange;
+    retagAuthType(agentId: string | null, tenantId: string, provider: string, nextAuthType: AuthType): Promise<void>;
+    removeProvider(agentId: string | null, tenantId: string, provider: string, authType?: AuthType, label?: string, manager?: EntityManager): Promise<{
+        notifications: string[];
+    }>;
+    listOwnedAgentIds(tenantId: string): Promise<string[]>;
+    private listOwnedAgentRouteTargets;
+    private assertProviderRoutesNotUsed;
+    private findFirstProviderRouteReference;
+    private listEnabledProviderIdsByAgent;
+    private findProviderRouteReferenceInRoutes;
+    private routeBelongsToProviderRows;
+    private routeBelongsToProviderRow;
+    private removeKeyByLabel;
+    deactivateAllProviders(agentId: string, tenantId: string): Promise<void>;
+    private cleanupUnsupportedSubscriptionProviders;
+    private relabelOverrides;
+    private renumberPriorities;
+    private normalizeLabel;
+    private assertLabelLooksValid;
+    private decryptOrNull;
+    private nextPriority;
+    nextOAuthLabel(tenantId: string, provider: string): Promise<string | undefined>;
+}

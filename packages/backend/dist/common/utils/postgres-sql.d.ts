@@ -1,0 +1,11 @@
+export declare function timestampType(): 'timestamp';
+export declare function timestampDefault(): () => string;
+export declare function computeCutoff(interval: string): string;
+export declare function sqlNow(): string;
+export declare function sqlHourBucket(col: string): string;
+export declare function sqlDateBucket(col: string): string;
+export declare function sqlCastFloat(col: string): string;
+export declare function sqlSanitizeCost(col: string): string;
+export declare function sqlCastInterval(paramName: string): string;
+export declare function toSqlTimestamp(d?: Date): string;
+export declare function toLocalSqlTimestamp(d?: Date): string;

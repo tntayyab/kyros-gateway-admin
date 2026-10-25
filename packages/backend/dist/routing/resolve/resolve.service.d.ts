@@ -1,0 +1,37 @@
+import { Repository } from 'typeorm';
+import type { IncomingHttpHeaders } from 'http';
+import { TierService } from '../routing-core/tier.service';
+import { ProviderKeyService } from '../routing-core/provider-key.service';
+import { RoutingCacheService } from '../routing-core/routing-cache.service';
+import { SpecificityService } from '../routing-core/specificity.service';
+import { SpecificityPenaltyService } from '../routing-core/specificity-penalty.service';
+import { HeaderTierService } from '../header-tiers/header-tier.service';
+import { ModelPricingCacheService } from '../../model-prices/model-pricing-cache.service';
+import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
+import { ScorerInput, MomentumInput } from '../../scoring';
+import { ResolveResponse } from '../dto/resolve-response';
+import { Agent } from '../../entities/agent.entity';
+import type { ModelRoute, SpecificityCategory, TierSlot } from 'manifest-shared';
+export declare class ResolveService {
+    private readonly tierService;
+    private readonly providerKeyService;
+    private readonly specificityService;
+    private readonly pricingCache;
+    private readonly discoveryService;
+    private readonly penaltyService;
+    private readonly headerTierService;
+    private readonly agentRepo;
+    private readonly routingCache;
+    private readonly logger;
+    constructor(tierService: TierService, providerKeyService: ProviderKeyService, specificityService: SpecificityService, pricingCache: ModelPricingCacheService, discoveryService: ModelDiscoveryService, penaltyService: SpecificityPenaltyService, headerTierService: HeaderTierService, agentRepo: Repository<Agent>, routingCache: RoutingCacheService);
+    resolve(agentId: string, tenantId: string, messages: ScorerInput['messages'], tools?: ScorerInput['tools'], toolChoice?: unknown, maxTokens?: number, recentTiers?: MomentumInput['recentTiers'], specificityOverride?: string, recentCategories?: readonly SpecificityCategory[], headers?: IncomingHttpHeaders): Promise<ResolveResponse>;
+    resolveLazy(agentId: string, tenantId: string, resolveInput: () => Promise<ScorerInput>, recentTiers?: MomentumInput['recentTiers'], specificityOverride?: string, recentCategories?: readonly SpecificityCategory[], headers?: IncomingHttpHeaders): Promise<ResolveResponse>;
+    resolveForTier(agentId: string, tenantId: string, tier: TierSlot, reason?: 'heartbeat' | 'default'): Promise<ResolveResponse>;
+    resolveHeaderTier(agentId: string, tenantId: string, headers: IncomingHttpHeaders): Promise<ResolveResponse | null>;
+    private resolveSpecificity;
+    private buildResolvedRouteChain;
+    pinRouteKeyLabel(agentId: string, tenantId: string, route: ModelRoute): Promise<ModelRoute>;
+    private defaultTierKeyLabel;
+    private enrichRouteKeyLabel;
+    private resolveProviderForModel;
+}

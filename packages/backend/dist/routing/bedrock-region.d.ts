@@ -1,0 +1,10 @@
+export declare const DEFAULT_BEDROCK_REGION = "us-east-1";
+export declare const BEDROCK_ENDPOINT_REGIONS: readonly ["us-east-1", "us-east-2", "us-west-2", "eu-west-1", "eu-west-2", "eu-central-1", "eu-south-1", "eu-north-1", "ap-south-1", "ap-southeast-2", "ap-southeast-3", "ap-northeast-1", "sa-east-1"];
+export declare function isBedrockProvider(provider: string): boolean;
+export declare function isBedrockRegion(value: string | null | undefined): value is string;
+export declare function getBedrockMantleBaseUrl(region?: string | null): string;
+export declare function getBedrockInferenceProfileBaseModelId(model: string): string | null;
+export declare function getBedrockRuntimeBaseUrl(region?: string | null): string;
+export declare function getBedrockControlPlaneBaseUrl(region?: string | null): string;
+export declare function normalizeBedrockMantleBaseUrl(baseUrl: string): string | null;
+export declare function detectBedrockRegionFromApiKey(apiKey: string | undefined): string | null;

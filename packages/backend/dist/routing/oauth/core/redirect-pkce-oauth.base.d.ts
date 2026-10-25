@@ -1,0 +1,54 @@
+import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { ProviderService } from '../../routing-core/provider.service';
+import { ModelDiscoveryService } from '../../../model-discovery/model-discovery.service';
+import { type OAuthTokenBlob } from './oauth-blob';
+export interface RedirectPkceOauthConfig {
+    readonly providerId: string;
+    readonly serviceName: string;
+    readonly defaultClientId: string;
+    readonly defaultClientSecret?: string;
+    readonly clientIdEnvVar: string;
+    readonly clientSecretEnvVar?: string;
+    readonly authorizeUrl: string;
+    readonly tokenUrl: string;
+    readonly revokeUrl?: string;
+    readonly scope: string;
+    readonly callbackPort: number;
+    readonly extraAuthorizeParams?: Readonly<Record<string, string>>;
+    readonly redirectUri?: string;
+    readonly callbackPath?: string;
+    readonly includeNonce?: boolean;
+    readonly extraTokenHeaders?: Readonly<Record<string, string>>;
+    readonly providerLabel?: string;
+}
+export declare abstract class RedirectPkceOauthBaseService {
+    protected readonly providerService: ProviderService;
+    protected readonly discoveryService: ModelDiscoveryService;
+    protected readonly oauthConfig: RedirectPkceOauthConfig;
+    protected readonly logger: Logger;
+    private readonly pending;
+    private callbackServer;
+    private serverReady;
+    protected readonly clientId: string;
+    protected readonly clientSecret: string | undefined;
+    protected readonly redirectUri: string;
+    private readonly useCallbackServer;
+    constructor(providerService: ProviderService, configService: ConfigService, discoveryService: ModelDiscoveryService, oauthConfig: RedirectPkceOauthConfig);
+    generateAuthorizationUrl(agentId: string, tenantId: string, backendUrl?: string, createdByUserId?: string | null): Promise<string>;
+    exchangeCode(state: string, code: string): Promise<void>;
+    refreshAccessToken(refreshToken: string, resourceField?: string): Promise<OAuthTokenBlob>;
+    unwrapToken(rawValue: string, agentId: string, tenantId: string, keyLabel?: string): Promise<string | null>;
+    private refreshAndPersistToken;
+    revokeToken(token: string): Promise<void>;
+    getPendingCount(): number;
+    clearPendingState(state: string): void;
+    protected get callbackPath(): string;
+    private tokenHeaders;
+    protected enrichBlob(blob: OAuthTokenBlob): Promise<OAuthTokenBlob>;
+    private ensureCallbackServer;
+    private handleCallbackRequest;
+    private isAllowedRedirectOrigin;
+    private sendDoneResponse;
+    private shutdownCallbackServerIfIdle;
+}

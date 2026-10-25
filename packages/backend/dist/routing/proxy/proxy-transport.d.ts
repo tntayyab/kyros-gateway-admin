@@ -1,0 +1,12 @@
+export declare const PROVIDER_TRANSPORT_ERROR_STATUS = 503;
+export declare const PROVIDER_TIMEOUT_STATUS = 504;
+export declare function getErrorName(error: unknown): string | undefined;
+export declare function getErrorMessage(error: unknown): string | undefined;
+export declare function getErrorCode(error: unknown): string | undefined;
+export declare function getErrorCause(error: unknown): unknown;
+export declare function isTransportError(error: unknown): boolean;
+export declare function isTimeoutError(error: unknown): boolean;
+export declare function sanitizeTransportErrorDetail(detail: string): string;
+export declare function selectTransportErrorDetail(error: unknown): string | undefined;
+export declare function describeTransportError(error: unknown): string;
+export declare function buildTransportErrorResponse(error: unknown): Response;

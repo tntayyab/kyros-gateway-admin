@@ -1,0 +1,39 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.httpErrorLogger = httpErrorLogger;
+const common_1 = require("@nestjs/common");
+const logger = new common_1.Logger('HttpErrors');
+const SUPPRESSED_PREFIXES = ['/otlp/', '/api/v1/otlp/'];
+const SUPPRESSED_EXACT = ['/v1/metrics', '/v1/traces', '/v1/logs'];
+function isSuppressed(url, status) {
+    if (status !== 410 && status !== 404)
+        return false;
+    for (const prefix of SUPPRESSED_PREFIXES) {
+        if (url.startsWith(prefix))
+            return true;
+    }
+    for (const path of SUPPRESSED_EXACT) {
+        if (url === path)
+            return true;
+    }
+    return false;
+}
+function stripControlChars(str) {
+    return str.replace(/[\x00-\x1f\x7f]/g, '');
+}
+function httpErrorLogger(req, res, next) {
+    const start = Date.now();
+    res.on('finish', () => {
+        if (res.statusCode < 400)
+            return;
+        if (isSuppressed(req.originalUrl, res.statusCode))
+            return;
+        const elapsed = Date.now() - start;
+        const ua = stripControlChars((req.headers['user-agent'] ?? '').slice(0, 120));
+        const ip = req.headers['x-forwarded-for'] ?? req.ip ?? '';
+        const forwardedIp = stripControlChars(Array.isArray(ip) ? ip[0] : ip);
+        logger.warn(`${res.statusCode} ${req.method} ${req.originalUrl} ${elapsed}ms ip=${forwardedIp} ua=${ua}`);
+    });
+    next();
+}
+//# sourceMappingURL=http-error-logger.middleware.js.map

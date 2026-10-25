@@ -1,0 +1,44 @@
+import { Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import { DataSource, Repository } from 'typeorm';
+import { BackfillState } from '../../entities/backfill-state.entity';
+import { type RequestBackfillOptions, type RequestBackfillResult } from './backfill-requests';
+export declare const REQUEST_BACKFILL_NAME = "requests_agent_messages_v1";
+export declare const REQUEST_TRANSITION_FINALIZATION_NAME = "requests_agent_messages_v2";
+export declare const REQUEST_BACKFILL_LOCK_KEY = 1792000000;
+type RequestBackfillRunner = (dataSource: DataSource, logger: Pick<Logger, 'log'>, options: Pick<RequestBackfillOptions, 'analyze' | 'before' | 'fallbackBefore' | 'finalize'>) => Promise<RequestBackfillResult>;
+type RequestTransitionFinalizer = (dataSource: DataSource, logger: Pick<Logger, 'log'>) => Promise<{
+    rejections: number;
+}>;
+export declare const REQUEST_BACKFILL_LOCK_RETRY_MS = 30000;
+export declare const REQUEST_BACKFILL_TAIL_INTERVAL_MS = 60000;
+export declare const REQUEST_BACKFILL_FALLBACK_GRACE_MS: number;
+export declare const REQUEST_BACKFILL_GENERIC_GRACE_MS: number;
+export declare class RequestBackfillBootService implements OnApplicationBootstrap, OnApplicationShutdown {
+    private readonly dataSource;
+    private readonly stateRepo;
+    private readonly logger;
+    private tailTimer;
+    private stopping;
+    private ownedDataSource;
+    private readonly transitionReadyAt;
+    constructor(dataSource: DataSource, stateRepo: Repository<BackfillState>);
+    onApplicationBootstrap(): void;
+    onApplicationShutdown(): Promise<void>;
+    private runManagedBackfill;
+    private createCloudCoordinator;
+    private releaseCloudCoordinator;
+    private stopTailSweep;
+    runUntilComplete(): Promise<void>;
+    runOnce(runner?: RequestBackfillRunner): Promise<boolean>;
+    runTailOnce(runner?: RequestBackfillRunner): Promise<boolean>;
+    hasUnlinkedAttempts(): Promise<boolean>;
+    private startTailSweep;
+    private runMaintenanceOnce;
+    runTransitionFinalizeOnce(runner?: RequestTransitionFinalizer): Promise<boolean>;
+    private runOptions;
+    private hasEligibleAttempts;
+    private hasAttemptTable;
+    private isCompleted;
+    private isTransitionFinalized;
+}
+export {};
