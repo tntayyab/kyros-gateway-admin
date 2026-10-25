@@ -181,6 +181,52 @@ export interface TenantProviderItem {
   connected_at: string;
 }
 
+export interface UserHarnessItem {
+  agent_id: string;
+  agent_name: string;
+  agent_display_name: string;
+  agent_category: string | null;
+  agent_platform: string | null;
+  tiers: RoutingTierInfo[];
+  primary_tier: RoutingTierInfo | null;
+  total_messages: number;
+  total_tokens: number;
+  total_cost: number;
+  last_model: string | null;
+  clean_last_model: string | null;
+  last_provider: string | null;
+  clean_last_provider: string | null;
+  last_active: string | null;
+}
+
+export interface UserAssetItem {
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  user_image: string | null;
+  user_created_at: string;
+  display_name: string;
+  headline: string | null;
+  bio: string | null;
+  location: string | null;
+  website: string | null;
+  banner_url: string | null;
+  avatar_url: string | null;
+  mobile: string | null;
+  anydesk_id: string | null;
+  is_earning: boolean;
+  is_supported: boolean;
+  plan: string;
+  member_role: string;
+  harnesses: UserHarnessItem[];
+  primary_harness: UserHarnessItem | null;
+  connected_providers: TenantProviderItem[];
+  total_messages: number;
+  total_tokens: number;
+  total_cost: number;
+  last_active: string | null;
+}
+
 export interface AgentAssetItem {
   agent_id: string;
   agent_name: string;
@@ -202,6 +248,7 @@ export interface AgentAssetItem {
 }
 
 export interface AssetsMonitoringSummary {
+  total_users: number;
   total_agents: number;
   total_providers: number;
   free_providers_count: number;
@@ -244,36 +291,56 @@ export function isModelFree(model?: string | null, provider?: string | null): bo
 }
 
 export async function getAiAssetsMonitoringData(): Promise<{
+  users: UserAssetItem[];
   agents: AgentAssetItem[];
   providers: TenantProviderItem[];
   summary: AssetsMonitoringSummary;
 }> {
-  const agentsQuery = `
-    WITH agent_summary AS (
+  const usersQuery = `
+    WITH user_base AS (
+      SELECT 
+        u.id as user_id,
+        u.name as user_name,
+        u.email as user_email,
+        u.image as user_image,
+        u."createdAt" as user_created_at,
+        COALESCE(p.display_name, u.name) as display_name,
+        p.headline,
+        p.bio,
+        p.location,
+        p.website,
+        p.banner_url,
+        p.avatar_url,
+        m.mobile,
+        m.anydesk_id,
+        COALESCE(m.is_earning, false) as is_earning,
+        COALESCE(m.is_supported, false) as is_supported,
+        COALESCE(m.plan, 'owner') as plan,
+        COALESCE(m.role, 'superadmin') as member_role
+      FROM "user" u
+      LEFT JOIN kyros_user_profiles p ON LOWER(p.email) = LOWER(u.email)
+      LEFT JOIN kyros_access_control m ON LOWER(m.email) = LOWER(u.email)
+    ),
+    agent_tiers AS (
       SELECT 
         a.id as agent_id,
         a.name as agent_name,
-        a.display_name,
+        a.display_name as agent_display_name,
         a.agent_category,
         a.agent_platform,
-        COALESCE(u.email, 'itstasdidnur@gmail.com') as user_email,
-        COALESCE(u.name, 'TN TAYYAB') as user_name
-      FROM agents a
-      LEFT JOIN "user" u ON u.id = a.tenant_id
-      WHERE a.deleted_at IS NULL
-    ),
-    tiers_data AS (
-      SELECT 
-        agent_id,
+        t.owner_user_id as user_id,
         json_agg(json_build_object(
-          'tier', tier,
-          'primary_route', override_route,
-          'fallback_routes', fallback_routes
+          'tier', ta.tier,
+          'primary_route', ta.override_route,
+          'fallback_routes', ta.fallback_routes
         )) as tiers
-      FROM tier_assignments
-      GROUP BY agent_id
+      FROM agents a
+      JOIN tenants t ON t.id = a.tenant_id
+      LEFT JOIN tier_assignments ta ON ta.agent_id = a.id
+      WHERE a.deleted_at IS NULL
+      GROUP BY a.id, a.name, a.display_name, a.agent_category, a.agent_platform, t.owner_user_id
     ),
-    messages_data AS (
+    agent_metrics AS (
       SELECT 
         agent_name,
         count(*) as total_messages,
@@ -284,19 +351,39 @@ export async function getAiAssetsMonitoringData(): Promise<{
         (SELECT provider FROM agent_messages m3 WHERE m3.agent_name = m.agent_name ORDER BY timestamp DESC LIMIT 1) as last_provider
       FROM agent_messages m
       GROUP BY agent_name
+    ),
+    combined_agents AS (
+      SELECT 
+        at.*,
+        COALESCE(am.total_messages, 0) as total_messages,
+        COALESCE(am.total_tokens, 0) as total_tokens,
+        COALESCE(am.total_cost, 0) as total_cost,
+        am.last_active,
+        am.last_model,
+        am.last_provider
+      FROM agent_tiers at
+      LEFT JOIN agent_metrics am ON am.agent_name = at.agent_name
+    ),
+    grouped_user_agents AS (
+      SELECT 
+        user_id,
+        json_agg(row_to_json(combined_agents)) as harnesses,
+        COALESCE(sum(total_messages), 0) as total_messages,
+        COALESCE(sum(total_tokens), 0) as total_tokens,
+        COALESCE(sum(total_cost), 0) as total_cost,
+        max(last_active) as last_active
+      FROM combined_agents
+      GROUP BY user_id
     )
     SELECT 
-      s.*,
-      COALESCE(t.tiers, '[]'::json) as tiers,
-      COALESCE(m.total_messages, 0) as total_messages,
-      COALESCE(m.total_tokens, 0) as total_tokens,
-      COALESCE(m.total_cost, 0) as total_cost,
-      m.last_active,
-      m.last_model,
-      m.last_provider
-    FROM agent_summary s
-    LEFT JOIN tiers_data t ON t.agent_id = s.agent_id
-    LEFT JOIN messages_data m ON m.agent_name = s.agent_name;
+      ub.*,
+      COALESCE(gua.harnesses, '[]'::json) as harnesses,
+      COALESCE(gua.total_messages, 0) as total_messages,
+      COALESCE(gua.total_tokens, 0) as total_tokens,
+      COALESCE(gua.total_cost, 0) as total_cost,
+      gua.last_active
+    FROM user_base ub
+    LEFT JOIN grouped_user_agents gua ON gua.user_id = ub.user_id;
   `;
 
   const providersQuery = `
@@ -315,8 +402,8 @@ export async function getAiAssetsMonitoringData(): Promise<{
     FROM tenant_providers;
   `;
 
-  const [agentsRaw, providersRaw] = await Promise.all([
-    execAdminSql<any>(agentsQuery),
+  const [usersRaw, providersRaw] = await Promise.all([
+    execAdminSql<any>(usersQuery),
     execAdminSql<any>(providersQuery),
   ]);
 
@@ -335,70 +422,131 @@ export async function getAiAssetsMonitoringData(): Promise<{
   let totalFallbacksCount = 0;
   let totalTokensAll = 0;
   let totalCostAll = 0;
+  let totalHarnessesCount = 0;
 
-  const agents: AgentAssetItem[] = agentsRaw.map((a) => {
-    totalTokensAll += Number(a.total_tokens) || 0;
-    totalCostAll += Number(a.total_cost) || 0;
+  const legacyAgentsList: AgentAssetItem[] = [];
 
-    const rawTiers: any[] = typeof a.tiers === 'string' ? JSON.parse(a.tiers) : (a.tiers || []);
-    
-    const formattedTiers: RoutingTierInfo[] = rawTiers.map((t) => {
-      const pRoute = t.primary_route;
-      const primaryModel = pRoute?.model || null;
-      const primaryProvider = pRoute?.provider || null;
+  const users: UserAssetItem[] = usersRaw.map((u) => {
+    totalTokensAll += Number(u.total_tokens) || 0;
+    totalCostAll += Number(u.total_cost) || 0;
 
-      const fRoutes: any[] = t.fallback_routes || [];
-      const fallbacks: FallbackRouteItem[] = fRoutes.map((f, idx) => {
-        totalFallbacksCount++;
+    const rawHarnesses: any[] = typeof u.harnesses === 'string' ? JSON.parse(u.harnesses) : (u.harnesses || []);
+    totalHarnessesCount += rawHarnesses.length;
+
+    const formattedHarnesses: UserHarnessItem[] = rawHarnesses.map((h) => {
+      const rawTiers: any[] = typeof h.tiers === 'string' ? JSON.parse(h.tiers) : (h.tiers || []);
+      const formattedTiers: RoutingTierInfo[] = rawTiers.map((t) => {
+        const pRoute = t.primary_route;
+        const primaryModel = pRoute?.model || null;
+        const primaryProvider = pRoute?.provider || null;
+
+        const fRoutes: any[] = t.fallback_routes || [];
+        const fallbacks: FallbackRouteItem[] = fRoutes.map((f, idx) => {
+          totalFallbacksCount++;
+          return {
+            model: f.model,
+            clean_model: cleanModelName(f.model),
+            provider: f.provider,
+            clean_provider: cleanProviderName(f.provider),
+            is_free: isModelFree(f.model, f.provider),
+            rank: idx + 1,
+          };
+        });
+
         return {
-          model: f.model,
-          clean_model: cleanModelName(f.model),
-          provider: f.provider,
-          clean_provider: cleanProviderName(f.provider),
-          is_free: isModelFree(f.model, f.provider),
-          rank: idx + 1,
+          tier: t.tier || 'default',
+          primary_model: primaryModel,
+          clean_primary_model: cleanModelName(primaryModel),
+          primary_provider: primaryProvider,
+          clean_primary_provider: cleanProviderName(primaryProvider),
+          is_primary_free: isModelFree(primaryModel, primaryProvider),
+          fallbacks,
         };
       });
 
-      return {
-        tier: t.tier,
-        primary_model: primaryModel,
-        clean_primary_model: cleanModelName(primaryModel),
-        primary_provider: primaryProvider,
-        clean_primary_provider: cleanProviderName(primaryProvider),
-        is_primary_free: isModelFree(primaryModel, primaryProvider),
-        fallbacks,
+      const defaultTier = formattedTiers.find((t) => t.tier === 'default' && t.primary_model)
+        || formattedTiers.find((t) => t.primary_model)
+        || formattedTiers[0] || null;
+
+      const harnessItem: UserHarnessItem = {
+        agent_id: h.agent_id,
+        agent_name: h.agent_name,
+        agent_display_name: h.agent_display_name || h.agent_name,
+        agent_category: h.agent_category,
+        agent_platform: h.agent_platform,
+        tiers: formattedTiers,
+        primary_tier: defaultTier,
+        total_messages: Number(h.total_messages) || 0,
+        total_tokens: Number(h.total_tokens) || 0,
+        total_cost: Number(h.total_cost) || 0,
+        last_model: h.last_model,
+        clean_last_model: cleanModelName(h.last_model),
+        last_provider: h.last_provider,
+        clean_last_provider: cleanProviderName(h.last_provider),
+        last_active: h.last_active,
       };
+
+      // Also push to legacy list for backwards compatibility
+      legacyAgentsList.push({
+        agent_id: harnessItem.agent_id,
+        agent_name: harnessItem.agent_name,
+        display_name: harnessItem.agent_display_name,
+        agent_category: harnessItem.agent_category,
+        agent_platform: harnessItem.agent_platform,
+        user_email: u.user_email,
+        user_name: u.user_name,
+        connected_providers: cleanProviders,
+        tiers: harnessItem.tiers,
+        primary_tier: harnessItem.primary_tier,
+        total_messages: harnessItem.total_messages,
+        total_tokens: harnessItem.total_tokens,
+        total_cost: harnessItem.total_cost,
+        last_model: harnessItem.last_model,
+        clean_last_model: harnessItem.clean_last_model,
+        last_provider: harnessItem.last_provider,
+        last_active: harnessItem.last_active,
+      });
+
+      return harnessItem;
     });
 
-    // Default primary tier is 'default' or first with active route
-    const defaultTier = formattedTiers.find((t) => t.tier === 'default' && t.primary_model)
-      || formattedTiers.find((t) => t.primary_model)
-      || formattedTiers[0] || null;
+    // Primary harness is the one with the most messages or active primary model
+    const primaryHarness = formattedHarnesses.slice().sort((a, b) => b.total_messages - a.total_messages)[0]
+      || formattedHarnesses.find((h) => h.primary_tier?.primary_model)
+      || formattedHarnesses[0] || null;
 
     return {
-      agent_id: a.agent_id,
-      agent_name: a.agent_name,
-      display_name: a.display_name || a.agent_name,
-      agent_category: a.agent_category,
-      agent_platform: a.agent_platform,
-      user_email: a.user_email,
-      user_name: a.user_name,
+      user_id: u.user_id,
+      user_name: u.user_name || 'TN TAYYAB',
+      user_email: u.user_email || 'itstasdidnur@gmail.com',
+      user_image: u.user_image,
+      user_created_at: u.user_created_at,
+      display_name: u.display_name || u.user_name || 'TN TAYYAB',
+      headline: u.headline,
+      bio: u.bio,
+      location: u.location,
+      website: u.website,
+      banner_url: u.banner_url,
+      avatar_url: u.avatar_url,
+      mobile: u.mobile,
+      anydesk_id: u.anydesk_id,
+      is_earning: Boolean(u.is_earning),
+      is_supported: Boolean(u.is_supported),
+      plan: u.plan || 'owner',
+      member_role: u.member_role || 'superadmin',
+      harnesses: formattedHarnesses,
+      primary_harness: primaryHarness,
       connected_providers: cleanProviders,
-      tiers: formattedTiers,
-      primary_tier: defaultTier,
-      total_messages: Number(a.total_messages) || 0,
-      total_tokens: Number(a.total_tokens) || 0,
-      total_cost: Number(a.total_cost) || 0,
-      last_model: a.last_model,
-      clean_last_model: cleanModelName(a.last_model),
-      last_provider: a.last_provider,
-      last_active: a.last_active,
+      total_messages: Number(u.total_messages) || 0,
+      total_tokens: Number(u.total_tokens) || 0,
+      total_cost: Number(u.total_cost) || 0,
+      last_active: u.last_active,
     };
   });
 
   const summary: AssetsMonitoringSummary = {
-    total_agents: agents.length,
+    total_users: users.length,
+    total_agents: totalHarnessesCount,
     total_providers: cleanProviders.length,
     free_providers_count: cleanProviders.filter((p) => p.is_free).length,
     paid_providers_count: cleanProviders.filter((p) => !p.is_free).length,
@@ -407,5 +555,5 @@ export async function getAiAssetsMonitoringData(): Promise<{
     total_cost_usd: totalCostAll,
   };
 
-  return { agents, providers: cleanProviders, summary };
+  return { users, agents: legacyAgentsList, providers: cleanProviders, summary };
 }

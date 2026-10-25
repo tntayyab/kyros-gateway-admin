@@ -8,7 +8,7 @@ import {
   updateMemberAsset,
   getAiAssetsMonitoringData,
   type GatewayMember,
-  type AgentAssetItem,
+  type UserAssetItem,
   type TenantProviderItem,
   type AssetsMonitoringSummary,
 } from '../services/admin-neon.js';
@@ -19,14 +19,15 @@ export const AdminAssets: Component = () => {
   const currentUserEmail = () => session()?.data?.user?.email?.toLowerCase() ?? '';
   const isBoss = () => currentUserEmail() === 'itstasdidnur@gmail.com';
 
-  // Active Tab: 'ai_assets' (Model/Provider/Fallback Hub) or 'members' (AnyDesk/Work Assets)
+  // Active Tab: 'ai_assets' (User AI Model/Provider/Fallback Hub) or 'members' (AnyDesk/Work Assets)
   const [activeTab, setActiveTab] = createSignal<'ai_assets' | 'members'>('ai_assets');
 
-  // AI Assets State
-  const [aiAgents, setAiAgents] = createSignal<AgentAssetItem[]>([]);
+  // AI Users & Assets State (Tab 1)
+  const [aiUsers, setAiUsers] = createSignal<UserAssetItem[]>([]);
   const [aiProviders, setAiProviders] = createSignal<TenantProviderItem[]>([]);
   const [aiSummary, setAiSummary] = createSignal<AssetsMonitoringSummary | null>(null);
   const [pricingFilter, setPricingFilter] = createSignal<'all' | 'free' | 'paid'>('all');
+  const [selectedUser, setSelectedUser] = createSignal<UserAssetItem | null>(null);
 
   // Members Assets State (Tab 2)
   const [members, setMembers] = createSignal<GatewayMember[]>([]);
@@ -48,9 +49,15 @@ export const AdminAssets: Component = () => {
         getAllMembers(),
       ]);
 
-      setAiAgents(aiData.agents);
+      setAiUsers(aiData.users);
       setAiProviders(aiData.providers);
       setAiSummary(aiData.summary);
+
+      // If user is currently selected in modal, keep their data updated
+      if (selectedUser()) {
+        const updated = aiData.users.find((u) => u.user_id === selectedUser()?.user_id);
+        if (updated) setSelectedUser(updated);
+      }
 
       setMembers(memberData);
       const anydesks: Record<string, string> = {};
@@ -76,31 +83,42 @@ export const AdminAssets: Component = () => {
   onMount(() => {
     loadData();
     const interval = setInterval(loadData, 15000);
-    onCleanup(() => clearInterval(interval));
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedUser()) {
+        setSelectedUser(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    onCleanup(() => {
+      clearInterval(interval);
+      window.removeEventListener('keydown', handleKeyDown);
+    });
   });
 
-  // Filtered AI Agents
-  const filteredAiAgents = () => {
-    let list = aiAgents();
+  // Filtered AI Users (Tab 1)
+  const filteredAiUsers = () => {
+    let list = aiUsers();
     const filter = pricingFilter();
     if (filter === 'free') {
-      list = list.filter((a) => a.primary_tier?.is_primary_free);
+      list = list.filter((u) => u.primary_harness?.primary_tier?.is_primary_free);
     } else if (filter === 'paid') {
-      list = list.filter((a) => a.primary_tier && !a.primary_tier.is_primary_free);
+      list = list.filter((u) => u.primary_harness?.primary_tier && !u.primary_harness.primary_tier.is_primary_free);
     }
 
     const q = searchQuery().toLowerCase().trim();
     if (q) {
-      list = list.filter((a) => {
-        const matchesName = a.display_name.toLowerCase().includes(q) || a.agent_name.toLowerCase().includes(q);
-        const matchesUser = a.user_name.toLowerCase().includes(q) || a.user_email.toLowerCase().includes(q);
-        const matchesModel = (a.primary_tier?.primary_model || '').toLowerCase().includes(q)
-          || (a.primary_tier?.clean_primary_model || '').toLowerCase().includes(q);
-        const matchesProvider = (a.primary_tier?.primary_provider || '').toLowerCase().includes(q);
-        const matchesFallback = a.primary_tier?.fallbacks.some(
+      list = list.filter((u) => {
+        const matchesName = (u.user_name || '').toLowerCase().includes(q) || (u.display_name || '').toLowerCase().includes(q);
+        const matchesEmail = (u.user_email || '').toLowerCase().includes(q);
+        const matchesHarness = u.harnesses.some((h) => h.agent_name.toLowerCase().includes(q));
+        const matchesModel = (u.primary_harness?.primary_tier?.clean_primary_model || '').toLowerCase().includes(q);
+        const matchesProvider = u.connected_providers.some((p) => p.clean_provider.toLowerCase().includes(q));
+        const matchesFallback = u.primary_harness?.primary_tier?.fallbacks.some(
           (f) => f.clean_model.toLowerCase().includes(q) || f.clean_provider.toLowerCase().includes(q),
         );
-        return matchesName || matchesUser || matchesModel || matchesProvider || matchesFallback;
+        return matchesName || matchesEmail || matchesHarness || matchesModel || matchesProvider || matchesFallback;
       });
     }
     return list;
@@ -123,13 +141,6 @@ export const AdminAssets: Component = () => {
     return list;
   };
 
-  // Tab 2 Member KPIs
-  const totalPaid = () => (paidMembers().length > 0 ? paidMembers().length : members().length);
-  const earningCount = () => Object.values(earningMap()).filter(Boolean).length;
-  const supportCount = () => Object.values(supportMap()).filter(Boolean).length;
-  const earningPercent = () => (totalPaid() === 0 ? 0 : Math.round((earningCount() / totalPaid()) * 100));
-  const supportPercent = () => (totalPaid() === 0 ? 0 : Math.round((supportCount() / totalPaid()) * 100));
-
   async function handleToggleEarning(m: GatewayMember) {
     const current = !!earningMap()[m.email];
     const next = !current;
@@ -140,7 +151,7 @@ export const AdminAssets: Component = () => {
       toast.success(`${m.name || m.email} earning status set to ${next ? 'YES' : 'NO'}`);
     } catch (err: any) {
       setEarningMap((prev) => ({ ...prev, [m.email]: current }));
-      toast.error(err.message || 'Failed to update earning');
+      toast.error(err.message || 'Failed to update earning status');
     } finally {
       setSavingKey(null);
     }
@@ -277,7 +288,7 @@ export const AdminAssets: Component = () => {
             class={`admin-nav-tab ${activeTab() === 'ai_assets' ? 'admin-nav-tab--active' : ''}`}
             onClick={() => setActiveTab('ai_assets')}
           >
-            <span>🤖</span> AI Models, Providers & Fallbacks ({aiAgents().length})
+            <span>🤖</span> AI Models, Providers & Fallbacks ({aiUsers().length})
           </button>
           <button
             type="button"
@@ -298,85 +309,105 @@ export const AdminAssets: Component = () => {
             <div class="admin-stat-card">
               <div class="admin-stat-card__header">
                 <span class="admin-stat-card__title">Connected Providers</span>
-                <span class="admin-stat-card__icon">🔌</span>
+                <span style={{ 'font-size': '18px' }}>🔌</span>
               </div>
-              <div class="admin-stat-card__value">
+              <div class="admin-stat-card__value" style="color: #2563eb;">
                 {aiSummary()?.total_providers ?? 0} Active
               </div>
-              <div class="admin-stat-card__sub" style="display: flex; gap: 6px; align-items: center; margin-top: 4px;">
-                <span class="badge-free">🟢 {aiSummary()?.free_providers_count ?? 0} Free</span>
-                <span class="badge-paid">💎 {aiSummary()?.paid_providers_count ?? 0} Paid</span>
+              <div class="admin-stat-card__change">
+                <span style={{ color: '#10b981', 'font-weight': '700' }}>
+                  🟢 {aiSummary()?.free_providers_count ?? 0} Free
+                </span>
+                {' • '}
+                <span style={{ color: '#f59e0b', 'font-weight': '700' }}>
+                  💎 {aiSummary()?.paid_providers_count ?? 0} Paid
+                </span>
               </div>
             </div>
 
-            {/* KPI 2: Active Primary Models */}
+            {/* KPI 2: Primary Routing Model */}
             <div class="admin-stat-card">
               <div class="admin-stat-card__header">
                 <span class="admin-stat-card__title">Primary Routing Model</span>
-                <span class="admin-stat-card__icon">🎯</span>
+                <span style={{ 'font-size': '18px' }}>🎯</span>
               </div>
-              <div class="admin-stat-card__value" style="font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                {aiAgents()[0]?.primary_tier?.clean_primary_model ?? 'DeepSeek-V4.1-Flash'}
+              <div class="admin-stat-card__value" style="font-size: 18px; color: #8b5cf6;">
+                {aiUsers()[0]?.primary_harness?.primary_tier?.clean_primary_model || 'DeepSeek-V4.1-Flash'}
               </div>
-              <div class="admin-stat-card__sub">
-                Provider: <span style="font-weight: 600; color: hsl(var(--foreground));">{aiAgents()[0]?.primary_tier?.clean_primary_provider ?? 'Custom Gateway'}</span>
+              <div class="admin-stat-card__change" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                Provider:{' '}
+                <span style={{ color: 'hsl(var(--foreground))', 'font-weight': '600' }}>
+                  {aiUsers()[0]?.primary_harness?.primary_tier?.clean_primary_provider || 'Custom Gateway'}
+                </span>
               </div>
             </div>
 
-            {/* KPI 3: Armed Fallback Models */}
+            {/* KPI 3: Armed Fallbacks */}
             <div class="admin-stat-card">
               <div class="admin-stat-card__header">
                 <span class="admin-stat-card__title">Armed Fallbacks</span>
-                <span class="admin-stat-card__icon">🛡️</span>
+                <span style={{ 'font-size': '18px' }}>🛡️</span>
               </div>
-              <div class="admin-stat-card__value">
+              <div class="admin-stat-card__value" style="color: #10b981;">
                 {aiSummary()?.total_fallback_models ?? 0} Models
               </div>
-              <div class="admin-stat-card__sub" style="color: #059669; font-weight: 600;">
+              <div class="admin-stat-card__change" style={{ color: '#10b981' }}>
                 ✓ 100% Failover Safety Active
               </div>
             </div>
 
-            {/* KPI 4: Total Consumption & Cost */}
+            {/* KPI 4: Total Traffic Monitored */}
             <div class="admin-stat-card">
               <div class="admin-stat-card__header">
                 <span class="admin-stat-card__title">Total Traffic Monitored</span>
-                <span class="admin-stat-card__icon">⚡</span>
+                <span style={{ 'font-size': '18px' }}>⚡</span>
               </div>
-              <div class="admin-stat-card__value">
+              <div class="admin-stat-card__value" style="color: #0284c7;">
                 {formatTokens(aiSummary()?.total_tokens_consumed ?? 0)} Tokens
               </div>
-              <div class="admin-stat-card__sub">
-                Cost: <span style="font-weight: 700; color: #10b981;">${(aiSummary()?.total_cost_usd ?? 0).toFixed(2)} USD</span>
+              <div class="admin-stat-card__change" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                Cost:{' '}
+                <span style={{ color: '#10b981', 'font-weight': '700' }}>
+                  ${(aiSummary()?.total_cost_usd ?? 0).toFixed(2)} USD
+                </span>
               </div>
             </div>
           </div>
 
-          {/* AI Assets Table Container */}
+          {/* AI User & Asset Matrix Table Panel */}
           <div class="admin-panel" style={{ padding: '0', overflow: 'hidden' }}>
-            {/* Header Controls */}
             <div
               style={{
-                padding: '18px 24px',
+                padding: '16px 20px',
                 'border-bottom': '1px solid hsl(var(--border))',
                 display: 'flex',
                 'align-items': 'center',
                 'justify-content': 'space-between',
                 'flex-wrap': 'wrap',
-                gap: '14px',
+                gap: '12px',
+                background: 'hsl(var(--muted) / 0.25)',
               }}
             >
               <div>
                 <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
-                  <h2 class="admin-panel__title" style={{ 'font-size': '16px' }}>
-                    LIVE USER & HARNESS AI ASSET MATRIX
-                  </h2>
-                  <span class="badge-approved" style={{ 'font-size': '11px', padding: '2px 8px' }}>
-                    Real-time Sync
+                  <h3 style={{ 'font-size': '15px', 'font-weight': '700', margin: '0', color: 'hsl(var(--foreground))' }}>
+                    LIVE USER & AI ASSET MATRIX
+                  </h3>
+                  <span
+                    style={{
+                      'font-size': '11px',
+                      padding: '2px 8px',
+                      'border-radius': '9999px',
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      color: '#2563eb',
+                      'font-weight': '600',
+                    }}
+                  >
+                    1 User per Account
                   </span>
                 </div>
-                <p class="admin-panel__desc">
-                  Full visibility into primary models, connected providers, pricing tier, and sequential fallback pipelines.
+                <p style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))', margin: '3px 0 0 0' }}>
+                  Click on any user name to open their full deep intelligence drawer (profile, credentials, harnesses & fallbacks).
                 </p>
               </div>
 
@@ -388,7 +419,7 @@ export const AdminAssets: Component = () => {
                     class={`admin-range-btn ${pricingFilter() === 'all' ? 'active' : ''}`}
                     onClick={() => setPricingFilter('all')}
                   >
-                    All Models
+                    All Users
                   </button>
                   <button
                     type="button"
@@ -408,7 +439,7 @@ export const AdminAssets: Component = () => {
 
                 <input
                   type="text"
-                  placeholder="Search model, provider, user..."
+                  placeholder="Search user, model, provider..."
                   value={searchQuery()}
                   onInput={(e) => setSearchQuery(e.currentTarget.value)}
                   class="admin-input"
@@ -422,7 +453,7 @@ export const AdminAssets: Component = () => {
               <table class="admin-table">
                 <thead>
                   <tr>
-                    <th>User & Harness</th>
+                    <th>User & Harnesses</th>
                     <th>Active Primary Model</th>
                     <th>Connected Providers</th>
                     <th>Armed Fallback Routing Chain</th>
@@ -432,7 +463,7 @@ export const AdminAssets: Component = () => {
                 </thead>
                 <tbody>
                   <Show
-                    when={!loading() && filteredAiAgents().length > 0}
+                    when={!loading() && filteredAiUsers().length > 0}
                     fallback={
                       <tr>
                         <td
@@ -443,47 +474,86 @@ export const AdminAssets: Component = () => {
                             color: 'hsl(var(--muted-foreground))',
                           }}
                         >
-                          {loading() ? 'Loading AI asset matrix from Neon DB...' : 'No harnesses or models found matching filter.'}
+                          {loading() ? 'Loading AI asset matrix from Neon DB...' : 'No users found matching filter.'}
                         </td>
                       </tr>
                     }
                   >
-                    <For each={filteredAiAgents()}>
-                      {(agent) => {
-                        const pt = () => agent.primary_tier;
+                    <For each={filteredAiUsers()}>
+                      {(user) => {
+                        const pt = () => user.primary_harness?.primary_tier;
                         const fallbacks = () => pt()?.fallbacks || [];
 
                         return (
                           <tr>
-                            {/* User & Harness */}
+                            {/* User & Harnesses */}
                             <td>
-                              <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
-                                <div
-                                  style={{
-                                    width: '32px',
-                                    height: '32px',
-                                    'border-radius': '50%',
-                                    background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-                                    color: '#fff',
-                                    display: 'flex',
-                                    'align-items': 'center',
-                                    'justify-content': 'center',
-                                    'font-weight': '700',
-                                    'font-size': '13px',
-                                    'flex-shrink': '0',
-                                  }}
+                              <div style={{ display: 'flex', 'align-items': 'flex-start', gap: '10px' }}>
+                                <Show
+                                  when={user.avatar_url}
+                                  fallback={
+                                    <div
+                                      style={{
+                                        width: '36px',
+                                        height: '36px',
+                                        'border-radius': '50%',
+                                        background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+                                        color: '#fff',
+                                        display: 'flex',
+                                        'align-items': 'center',
+                                        'justify-content': 'center',
+                                        'font-weight': '700',
+                                        'font-size': '14px',
+                                        'flex-shrink': '0',
+                                        'margin-top': '2px',
+                                      }}
+                                    >
+                                      {user.user_name.charAt(0)}
+                                    </div>
+                                  }
                                 >
-                                  {agent.user_name.charAt(0)}
-                                </div>
+                                  <img
+                                    src={user.avatar_url!}
+                                    alt={user.user_name}
+                                    style={{
+                                      width: '36px',
+                                      height: '36px',
+                                      'border-radius': '50%',
+                                      'object-fit': 'cover',
+                                      'flex-shrink': '0',
+                                      'margin-top': '2px',
+                                      border: '1.5px solid hsl(var(--border))',
+                                    }}
+                                  />
+                                </Show>
+
                                 <div>
-                                  <div style={{ 'font-weight': '700', color: 'hsl(var(--foreground))' }}>
-                                    {agent.user_name}
+                                  {/* Clickable User Name */}
+                                  <div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedUser(user)}
+                                      class="user-name-click-btn"
+                                      title="Click to view all user details, credentials & fallbacks"
+                                    >
+                                      <span>{user.display_name || user.user_name}</span>
+                                      <span class="view-details-pill">Details ↗</span>
+                                    </button>
                                   </div>
-                                  <div style={{ 'font-size': '11px', color: '#0284c7' }}>
-                                    @{agent.agent_name} ({agent.agent_platform || 'gateway'})
+
+                                  <div style={{ 'font-size': '11px', color: 'hsl(var(--muted-foreground))', 'margin-top': '2px' }}>
+                                    {user.user_email}
                                   </div>
-                                  <div style={{ 'font-size': '10px', color: 'hsl(var(--muted-foreground))' }}>
-                                    {agent.user_email}
+
+                                  {/* Harnesses List Badge */}
+                                  <div class="badge-harnesses">
+                                    <span>⚡</span>
+                                    <span style={{ 'font-weight': '700', color: '#0284c7' }}>
+                                      {user.harnesses.length} Harness{user.harnesses.length > 1 ? 'es' : ''}:
+                                    </span>
+                                    <span style={{ 'font-family': 'monospace' }}>
+                                      {user.harnesses.map((h) => `@${h.agent_name}${h.agent_platform ? ` (${h.agent_platform})` : ''}`).join(', ')}
+                                    </span>
                                   </div>
                                 </div>
                               </div>
@@ -505,6 +575,11 @@ export const AdminAssets: Component = () => {
                                 </div>
                                 <div style={{ 'font-size': '11px', color: 'hsl(var(--muted-foreground))', 'margin-top': '2px' }}>
                                   Provider: <span style={{ 'font-weight': '600' }}>{pt()?.clean_primary_provider || 'Default'}</span>
+                                  <Show when={user.primary_harness}>
+                                    <span style={{ 'font-size': '10px', color: '#0284c7', 'margin-left': '4px' }}>
+                                      (@{user.primary_harness?.agent_name})
+                                    </span>
+                                  </Show>
                                 </div>
                               </div>
                             </td>
@@ -513,22 +588,22 @@ export const AdminAssets: Component = () => {
                             <td>
                               <div style={{ display: 'flex', 'flex-direction': 'column', gap: '4px' }}>
                                 <div style={{ 'font-size': '11px', 'font-weight': '700', color: 'hsl(var(--muted-foreground))' }}>
-                                  {agent.connected_providers.length} PROVIDER(S):
+                                  {user.connected_providers.length} PROVIDER(S):
                                 </div>
                                 <div style={{ display: 'flex', 'flex-wrap': 'wrap', gap: '4px' }}>
-                                  <For each={agent.connected_providers}>
+                                  <For each={user.connected_providers}>
                                     {(p) => (
-                                      <span class="provider-pill">
-                                        <span style={{ color: p.is_free ? '#10b981' : '#f59e0b' }}>
-                                          {p.is_free ? '🟢' : '💎'}
-                                        </span>
+                                      <div class="provider-pill">
+                                        <Show when={p.is_free} fallback={<span class="badge-paid" style={{ 'font-size': '9px', padding: '1px 4px' }}>💎</span>}>
+                                          <span class="badge-free" style={{ 'font-size': '9px', padding: '1px 4px' }}>🟢</span>
+                                        </Show>
                                         <span>{p.clean_provider}</span>
                                         <Show when={p.key_prefix}>
-                                          <span style={{ 'font-size': '9px', opacity: 0.6, 'font-family': 'monospace' }}>
+                                          <span style={{ 'font-size': '10px', color: 'hsl(var(--muted-foreground))' }}>
                                             ({p.key_prefix})
                                           </span>
                                         </Show>
-                                      </span>
+                                      </div>
                                     )}
                                   </For>
                                 </div>
@@ -536,49 +611,56 @@ export const AdminAssets: Component = () => {
                             </td>
 
                             {/* Armed Fallback Routing Chain */}
-                            <td style={{ 'max-width': '420px' }}>
+                            <td>
                               <Show
                                 when={fallbacks().length > 0}
                                 fallback={
-                                  <span style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))' }}>
+                                  <div style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))', 'font-style': 'italic' }}>
                                     No fallback models configured
-                                  </span>
+                                  </div>
                                 }
                               >
-                                <div style={{ 'font-size': '11px', 'font-weight': '700', color: '#059669', 'margin-bottom': '4px' }}>
-                                  🛡️ {fallbacks().length} FAILOVER STEPS:
-                                </div>
-                                <div class="fallback-chain">
-                                  <For each={fallbacks()}>
-                                    {(fb, idx) => (
-                                      <div style={{ display: 'inline-flex', 'align-items': 'center', gap: '4px' }}>
-                                        <div class="fallback-step-chip">
-                                          <span style={{ 'font-weight': '700', color: '#3b82f6' }}>#{fb.rank}</span>
-                                          <span>{fb.clean_model}</span>
-                                          <Show when={fb.is_free} fallback={<span style={{ 'font-size': '9px', color: '#d97706', 'font-weight': '700' }}>[PAID]</span>}>
-                                            <span style={{ 'font-size': '9px', color: '#059669', 'font-weight': '700' }}>[FREE]</span>
+                                <div>
+                                  <div style={{ 'font-size': '10px', 'font-weight': '700', color: 'hsl(var(--muted-foreground))', 'letter-spacing': '0.04em' }}>
+                                    🛡️ {fallbacks().length} FAILOVER STEPS:
+                                  </div>
+                                  <div class="fallback-chain">
+                                    <For each={fallbacks()}>
+                                      {(fb, idx) => (
+                                        <>
+                                          <div class="fallback-step-chip">
+                                            <span style={{ 'font-weight': '700', color: '#0284c7' }}>#{fb.rank}</span>
+                                            <span>{fb.clean_model}</span>
+                                            <Show
+                                              when={fb.is_free}
+                                              fallback={<span class="badge-paid" style={{ 'font-size': '9px', padding: '1px 4px' }}>PAID</span>}
+                                            >
+                                              <span class="badge-free" style={{ 'font-size': '9px', padding: '1px 4px' }}>FREE</span>
+                                            </Show>
+                                          </div>
+                                          <Show when={idx() < fallbacks().length - 1}>
+                                            <span class="fallback-arrow">➔</span>
                                           </Show>
-                                        </div>
-                                        <Show when={idx() < fallbacks().length - 1}>
-                                          <span class="fallback-arrow">➔</span>
-                                        </Show>
-                                      </div>
-                                    )}
-                                  </For>
+                                        </>
+                                      )}
+                                    </For>
+                                  </div>
                                 </div>
                               </Show>
                             </td>
 
                             {/* Traffic / Cost */}
                             <td>
-                              <div style={{ 'font-weight': '700', 'font-size': '13px' }}>
-                                {formatTokens(agent.total_tokens)} tokens
-                              </div>
-                              <div style={{ 'font-size': '11px', color: '#10b981', 'font-weight': '600' }}>
-                                ${agent.total_cost.toFixed(3)} USD
-                              </div>
-                              <div style={{ 'font-size': '10px', color: 'hsl(var(--muted-foreground))' }}>
-                                {agent.total_messages.toLocaleString()} requests
+                              <div>
+                                <div style={{ 'font-weight': '700', 'font-size': '13px', color: 'hsl(var(--foreground))' }}>
+                                  {formatTokens(user.total_tokens)} tokens
+                                </div>
+                                <div style={{ 'font-size': '11px', color: '#10b981', 'font-weight': '600' }}>
+                                  ${user.total_cost.toFixed(3)} USD
+                                </div>
+                                <div style={{ 'font-size': '10px', color: 'hsl(var(--muted-foreground))' }}>
+                                  {user.total_messages.toLocaleString()} requests
+                                </div>
                               </div>
                             </td>
 
@@ -591,182 +673,62 @@ export const AdminAssets: Component = () => {
                                     height: '8px',
                                     'border-radius': '50%',
                                     background: '#10b981',
-                                    'box-shadow': '0 0 8px rgba(16, 185, 129, 0.6)',
                                     display: 'inline-block',
+                                    'box-shadow': '0 0 6px rgba(16, 185, 129, 0.6)',
                                   }}
                                 />
-                                <span style={{ 'font-weight': '600', 'font-size': '12px', color: 'hsl(var(--foreground))' }}>
+                                <span style={{ 'font-size': '12px', 'font-weight': '600' }}>
                                   Active
                                 </span>
                               </div>
                               <div style={{ 'font-size': '10px', color: 'hsl(var(--muted-foreground))', 'margin-top': '2px' }}>
-                                {formatRelativeTime(agent.last_active)}
+                                {formatRelativeTime(user.last_active)}
                               </div>
                             </td>
                           </tr>
                         );
                       }}
                     </For>
-                </Show>
-                  </tbody>
+                  </Show>
+                </tbody>
               </table>
             </div>
           </div>
         </Show>
 
         {/* ======================================================== */}
-        {/* TAB 2: PAID USERS & REMOTE ANYDESK ASSETS (WRITERIFY) */}
+        {/* TAB 2: MEMBERS ANYDESK & WORK ASSETS (PRESERVED)           */}
         {/* ======================================================== */}
         <Show when={activeTab() === 'members'}>
-          {/* Analytics Cards */}
-          <div class="admin-grid-2" style="margin-bottom: 24px;">
-            {/* Card 1: Earning online */}
-            <div
-              class="admin-panel"
-              style={{
-                display: 'flex',
-                'align-items': 'center',
-                'justify-content': 'space-between',
-                gap: '16px',
-                'margin-bottom': '0',
-              }}
-            >
-              <div>
-                <div style={{ 'font-size': '12px', 'font-weight': '700', color: '#059669', 'letter-spacing': '0.05em' }}>
-                  EARNING ONLINE
-                </div>
-                <div style={{ 'font-size': '28px', 'font-weight': '800', color: 'hsl(var(--foreground))', 'margin-top': '6px' }}>
-                  {earningCount()} / {totalPaid()}
-                </div>
-                <div style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))', 'margin-top': '4px' }}>
-                  <span style={{ color: '#059669', 'font-weight': '700' }}>{earningPercent()}%</span> earning,{' '}
-                  {Math.max(0, totalPaid() - earningCount())} not yet
-                </div>
-              </div>
-
-              <div
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  'border-radius': '50%',
-                  background: `conic-gradient(#10b981 ${earningPercent()}%, hsl(var(--muted)) 0%)`,
-                  display: 'flex',
-                  'align-items': 'center',
-                  'justify-content': 'center',
-                  padding: '6px',
-                  'flex-shrink': '0',
-                }}
-              >
-                <div
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    'border-radius': '50%',
-                    background: 'hsl(var(--card))',
-                    display: 'flex',
-                    'align-items': 'center',
-                    'justify-content': 'center',
-                    'font-size': '12px',
-                    'font-weight': '800',
-                    color: '#059669',
-                  }}
-                >
-                  {earningPercent()}%
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2: Support coverage */}
-            <div
-              class="admin-panel"
-              style={{
-                display: 'flex',
-                'align-items': 'center',
-                'justify-content': 'space-between',
-                gap: '16px',
-                'margin-bottom': '0',
-              }}
-            >
-              <div>
-                <div style={{ 'font-size': '12px', 'font-weight': '700', color: '#0284c7', 'letter-spacing': '0.05em' }}>
-                  SUPPORT COVERAGE
-                </div>
-                <div style={{ 'font-size': '28px', 'font-weight': '800', color: 'hsl(var(--foreground))', 'margin-top': '6px' }}>
-                  {supportCount()} / {totalPaid()}
-                </div>
-                <div style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))', 'margin-top': '4px' }}>
-                  <span style={{ color: '#0284c7', 'font-weight': '700' }}>{supportPercent()}%</span> supported,{' '}
-                  {Math.max(0, totalPaid() - supportCount())} not yet
-                </div>
-              </div>
-
-              <div
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  'border-radius': '50%',
-                  background: `conic-gradient(#0284c7 ${supportPercent()}%, hsl(var(--muted)) 0%)`,
-                  display: 'flex',
-                  'align-items': 'center',
-                  'justify-content': 'center',
-                  padding: '6px',
-                  'flex-shrink': '0',
-                }}
-              >
-                <div
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    'border-radius': '50%',
-                    background: 'hsl(var(--card))',
-                    display: 'flex',
-                    'align-items': 'center',
-                    'justify-content': 'center',
-                    'font-size': '12px',
-                    'font-weight': '800',
-                    color: '#0284c7',
-                  }}
-                >
-                  {supportPercent()}%
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Table Container */}
           <div class="admin-panel" style={{ padding: '0', overflow: 'hidden' }}>
             <div
               style={{
-                padding: '18px 24px',
+                padding: '16px 20px',
                 'border-bottom': '1px solid hsl(var(--border))',
                 display: 'flex',
                 'align-items': 'center',
                 'justify-content': 'space-between',
                 'flex-wrap': 'wrap',
-                gap: '14px',
+                gap: '12px',
+                background: 'hsl(var(--muted) / 0.25)',
               }}
             >
               <div>
-                <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
-                  <h2 class="admin-panel__title" style={{ 'font-size': '16px' }}>
-                    PAID USERS & REMOTE ASSETS ({paidMembers().length})
-                  </h2>
-                  <span class="badge-approved" style={{ 'font-size': '11px', padding: '2px 8px' }}>
-                    Auto-Save Active
-                  </span>
-                </div>
-                <p class="admin-panel__desc">
-                  Toggles and AnyDesk edits save automatically to Neon Cloud DB.
+                <h3 style={{ 'font-size': '15px', 'font-weight': '700', margin: '0', color: 'hsl(var(--foreground))' }}>
+                  PAID USERS & REMOTE ANYDESK DIRECTORY
+                </h3>
+                <p style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))', margin: '3px 0 0 0' }}>
+                  Manage client AnyDesk remote access, WhatsApp channels, earning online status, and priority support.
                 </p>
               </div>
 
               <input
                 type="text"
-                placeholder="Search user, mobile, AnyDesk..."
+                placeholder="Search member, AnyDesk, mobile..."
                 value={searchQuery()}
                 onInput={(e) => setSearchQuery(e.currentTarget.value)}
                 class="admin-input"
-                style={{ width: '240px' }}
+                style={{ width: '260px' }}
               />
             </div>
 
@@ -775,8 +737,8 @@ export const AdminAssets: Component = () => {
                 <thead>
                   <tr>
                     <th>User</th>
-                    <th>MOBILE</th>
-                    <th>ANYDESK ID</th>
+                    <th>Mobile</th>
+                    <th>AnyDesk ID</th>
                     <th>Earning</th>
                     <th>Support</th>
                     <th>Joined</th>
@@ -795,115 +757,437 @@ export const AdminAssets: Component = () => {
                             color: 'hsl(var(--muted-foreground))',
                           }}
                         >
-                          {loading() ? 'Loading member assets...' : 'No users match criteria.'}
+                          {loading() ? 'Loading member assets...' : 'No members found matching filter.'}
                         </td>
                       </tr>
                     }
                   >
                     <For each={filteredMembers()}>
-                      {(m) => {
-                        const isEarning = () => !!earningMap()[m.email];
-                        const isSupported = () => !!supportMap()[m.email];
-                        const anydesk = () => anydeskMap()[m.email] ?? m.anydesk_id ?? '';
-                        const joinedFormatted = m.created_at
-                          ? new Date(m.created_at).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })
-                          : 'Oct 24, 2026';
+                      {(member) => (
+                        <tr>
+                          <td>
+                            <div style={{ 'font-weight': '600', color: 'hsl(var(--foreground))' }}>
+                              {member.name || 'Anonymous User'}
+                            </div>
+                            <div style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))' }}>
+                              {member.email}
+                            </div>
+                          </td>
 
-                        return (
-                          <tr>
-                            <td>
-                              <div style={{ 'font-weight': '600', color: 'hsl(var(--foreground))' }}>
-                                {m.name || m.email.split('@')[0]}
-                              </div>
-                              <div style={{ 'font-size': '12px', color: '#0284c7' }}>{m.email}</div>
-                            </td>
-
-                            <td>
-                              <Show
-                                when={m.mobile}
-                                fallback={<span style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))' }}>—</span>}
+                          <td>
+                            <Show
+                              when={member.mobile}
+                              fallback={<span style={{ color: 'hsl(var(--muted-foreground))' }}>—</span>}
+                            >
+                              <a
+                                href={`https://wa.me/${member.mobile?.replace(/[^0-9]/g, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  color: '#2563eb',
+                                  'text-decoration': 'none',
+                                  display: 'inline-flex',
+                                  'align-items': 'center',
+                                  gap: '4px',
+                                  'font-size': '12px',
+                                  'font-weight': '500',
+                                }}
                               >
-                                <a
-                                  href={`https://wa.me/${m.mobile?.replace(/\D/g, '')}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  style={{
-                                    'font-size': '12px',
-                                    color: '#059669',
-                                    'text-decoration': 'none',
-                                    display: 'inline-flex',
-                                    'align-items': 'center',
-                                    gap: '5px',
-                                    'font-weight': '600',
-                                  }}
-                                >
-                                  <span>💬</span> {m.mobile}
-                                </a>
+                                <span>📱</span>
+                                {member.mobile}
+                              </a>
+                            </Show>
+                          </td>
+
+                          <td>
+                            <div style={{ display: 'flex', 'align-items': 'center', gap: '6px' }}>
+                              <input
+                                type="text"
+                                placeholder="e.g. 1 234 567 890"
+                                value={anydeskMap()[member.email] ?? ''}
+                                onInput={(e) =>
+                                  setAnydeskMap((prev) => ({
+                                    ...prev,
+                                    [member.email]: e.currentTarget.value,
+                                  }))
+                                }
+                                onBlur={() => handleAnydeskBlur(member)}
+                                class="admin-input"
+                                style={{
+                                  width: '160px',
+                                  padding: '4px 8px',
+                                  'font-size': '12px',
+                                  'font-family': 'monospace',
+                                }}
+                              />
+                              <Show when={savingKey() === `${member.email}-anydesk`}>
+                                <span style={{ 'font-size': '11px', color: '#2563eb' }}>💾</span>
                               </Show>
-                            </td>
+                            </div>
+                          </td>
 
-                            <td>
-                              <div style={{ display: 'flex', 'align-items': 'center', gap: '6px' }}>
-                                <input
-                                  type="text"
-                                  placeholder="e.g. 123 456 789"
-                                  value={anydesk()}
-                                  onInput={(e) => {
-                                    const val = e.currentTarget.value;
-                                    setAnydeskMap((prev) => ({ ...prev, [m.email]: val }));
-                                  }}
-                                  onBlur={() => handleAnydeskBlur(m)}
-                                  class="admin-input"
-                                  style={{ width: '140px', padding: '5px 10px' }}
-                                />
-                                <Show when={savingKey() === `${m.email}-anydesk`}>
-                                  <span style={{ 'font-size': '10px', color: '#0284c7' }}>💾 Saving...</span>
-                                </Show>
-                              </div>
-                            </td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleEarning(member)}
+                              disabled={savingKey() === `${member.email}-earning`}
+                              style={{
+                                background: earningMap()[member.email] ? 'rgba(16, 185, 129, 0.12)' : 'hsl(var(--muted))',
+                                color: earningMap()[member.email] ? '#059669' : 'hsl(var(--muted-foreground))',
+                                border: earningMap()[member.email]
+                                  ? '1px solid rgba(16, 185, 129, 0.3)'
+                                  : '1px solid hsl(var(--border))',
+                                padding: '4px 10px',
+                                'border-radius': '9999px',
+                                'font-size': '11px',
+                                'font-weight': '600',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              {earningMap()[member.email] ? '✓ YES' : 'NO'}
+                            </button>
+                          </td>
 
-                            <td>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleEarning(m)}
-                                class={`toggle-btn ${isEarning() ? 'active' : ''}`}
-                                aria-label="Toggle earning status"
-                              >
-                                <span class="toggle-slider" />
-                              </button>
-                            </td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSupport(member)}
+                              disabled={savingKey() === `${member.email}-support`}
+                              style={{
+                                background: supportMap()[member.email] ? 'rgba(37, 99, 235, 0.12)' : 'hsl(var(--muted))',
+                                color: supportMap()[member.email] ? '#2563eb' : 'hsl(var(--muted-foreground))',
+                                border: supportMap()[member.email]
+                                  ? '1px solid rgba(37, 99, 235, 0.3)'
+                                  : '1px solid hsl(var(--border))',
+                                padding: '4px 10px',
+                                'border-radius': '9999px',
+                                'font-size': '11px',
+                                'font-weight': '600',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              {supportMap()[member.email] ? '✓ ACTIVE' : 'NONE'}
+                            </button>
+                          </td>
 
-                            <td>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleSupport(m)}
-                                class={`toggle-btn ${isSupported() ? 'active' : ''}`}
-                                aria-label="Toggle support status"
-                              >
-                                <span class="toggle-slider" />
-                              </button>
-                            </td>
-
-                            <td>
-                              <div style={{ 'font-size': '12px', color: 'hsl(var(--foreground))' }}>{joinedFormatted}</div>
-                            </td>
-                          </tr>
-                        );
-                      }}
+                          <td style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))' }}>
+                            {member.created_at
+                              ? new Date(member.created_at).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                })
+                              : '—'}
+                          </td>
+                        </tr>
+                      )}
                     </For>
-                </Show>
-                  </tbody>
+                  </Show>
+                </tbody>
               </table>
             </div>
           </div>
+        </Show>
+
+        {/* ======================================================== */}
+        {/* USER DEEP INTELLIGENCE MODAL (CLICK ON USER NAME)        */}
+        {/* ======================================================== */}
+        <Show when={selectedUser()}>
+          {(user) => (
+            <div
+              class="user-details-modal-overlay"
+              onClick={() => setSelectedUser(null)}
+            >
+              <div
+                class="user-details-modal"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Banner Header */}
+                <div
+                  class="modal-banner"
+                  style={{
+                    'background-image': user().banner_url ? `url("${user().banner_url}")` : 'linear-gradient(135deg, #1e293b, #0f172a)',
+                  }}
+                >
+                  <div class="modal-banner-gradient" />
+                  <button
+                    type="button"
+                    class="modal-close-btn"
+                    onClick={() => setSelectedUser(null)}
+                    title="Close (Esc)"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Profile Header */}
+                <div class="modal-header-body">
+                  <div class="modal-avatar-wrapper">
+                    <Show
+                      when={user().avatar_url}
+                      fallback={
+                        <div class="modal-avatar">
+                          {user().user_name.charAt(0)}
+                        </div>
+                      }
+                    >
+                      <img src={user().avatar_url!} alt={user().user_name} class="modal-avatar" />
+                    </Show>
+                    <span class="modal-avatar-status" title="Active Account" />
+                  </div>
+
+                  <div style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'space-between', 'flex-wrap': 'wrap', gap: '8px' }}>
+                    <div>
+                      <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
+                        <h2 style={{ 'font-size': '22px', 'font-weight': '800', margin: '0', color: 'hsl(var(--foreground))' }}>
+                          {user().display_name || user().user_name}
+                        </h2>
+                        <span class="badge-paid" style={{ 'font-size': '12px', padding: '3px 9px' }}>
+                          👑 {user().member_role === 'superadmin' || user().plan === 'owner' ? 'Super Admin / Owner' : 'Verified Member'}
+                        </span>
+                      </div>
+                      <div style={{ 'font-size': '13px', color: 'hsl(var(--muted-foreground))', 'margin-top': '4px' }}>
+                        {user().user_email} • Joined {new Date(user().user_created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <A href="/account" class="admin-btn-secondary" style={{ 'font-size': '12px', padding: '6px 12px' }}>
+                        ⚙️ Edit Profile in Account
+                      </A>
+                    </div>
+                  </div>
+
+                  {/* Headline & Bio */}
+                  <Show when={user().headline}>
+                    <div style={{ 'font-size': '14px', 'font-weight': '600', color: '#0284c7', 'margin-top': '10px' }}>
+                      {user().headline}
+                    </div>
+                  </Show>
+                  <Show when={user().bio}>
+                    <p style={{ 'font-size': '13px', color: 'hsl(var(--muted-foreground))', 'margin-top': '6px', 'line-height': '1.5' }}>
+                      {user().bio}
+                    </p>
+                  </Show>
+
+                  {/* Location & Website */}
+                  <div style={{ display: 'flex', gap: '14px', 'margin-top': '10px', 'font-size': '12px', color: 'hsl(var(--muted-foreground))', 'flex-wrap': 'wrap' }}>
+                    <Show when={user().location}>
+                      <span>📍 {user().location}</span>
+                    </Show>
+                    <Show when={user().website}>
+                      <span>🌐 <a href={user().website!} target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}>{user().website}</a></span>
+                    </Show>
+                  </div>
+                </div>
+
+                {/* Lifetime Metrics Strip */}
+                <div style={{ padding: '0 24px 18px 24px' }}>
+                  <div class="admin-grid-4" style={{ margin: '0' }}>
+                    <div class="admin-stat-card" style={{ padding: '12px 14px' }}>
+                      <div class="admin-stat-card__title" style={{ 'font-size': '11px' }}>Total Tokens</div>
+                      <div class="admin-stat-card__value" style={{ 'font-size': '18px', color: '#8b5cf6' }}>
+                        {formatTokens(user().total_tokens)}
+                      </div>
+                    </div>
+                    <div class="admin-stat-card" style={{ padding: '12px 14px' }}>
+                      <div class="admin-stat-card__title" style={{ 'font-size': '11px' }}>Total Cost</div>
+                      <div class="admin-stat-card__value" style={{ 'font-size': '18px', color: '#10b981' }}>
+                        ${user().total_cost.toFixed(2)} USD
+                      </div>
+                    </div>
+                    <div class="admin-stat-card" style={{ padding: '12px 14px' }}>
+                      <div class="admin-stat-card__title" style={{ 'font-size': '11px' }}>Total Requests</div>
+                      <div class="admin-stat-card__value" style={{ 'font-size': '18px', color: '#0284c7' }}>
+                        {user().total_messages.toLocaleString()}
+                      </div>
+                    </div>
+                    <div class="admin-stat-card" style={{ padding: '12px 14px' }}>
+                      <div class="admin-stat-card__title" style={{ 'font-size': '11px' }}>Harness Swarm</div>
+                      <div class="admin-stat-card__value" style={{ 'font-size': '18px', color: '#f59e0b' }}>
+                        {user().harnesses.length} Active
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 1: Remote AnyDesk & Support */}
+                <div class="modal-section">
+                  <div class="modal-section-title">
+                    <span>💼</span> Remote Access & Support Configuration
+                  </div>
+                  <div style={{ display: 'grid', 'grid-template-columns': 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                    <div style={{ background: 'hsl(var(--muted) / 0.5)', padding: '10px 14px', 'border-radius': '8px', border: '1px solid hsl(var(--border))' }}>
+                      <div style={{ 'font-size': '11px', color: 'hsl(var(--muted-foreground))', 'margin-bottom': '4px' }}>AnyDesk ID</div>
+                      <div style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'space-between', gap: '8px' }}>
+                        <span style={{ 'font-weight': '700', 'font-family': 'monospace', 'font-size': '13px' }}>
+                          {user().anydesk_id || 'Not configured'}
+                        </span>
+                        <Show when={user().anydesk_id}>
+                          <button
+                            type="button"
+                            class="admin-btn-secondary"
+                            style={{ padding: '2px 8px', 'font-size': '11px' }}
+                            onClick={() => {
+                              navigator.clipboard.writeText(user().anydesk_id!);
+                              toast.success('AnyDesk ID copied to clipboard');
+                            }}
+                          >
+                            Copy
+                          </button>
+                        </Show>
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'hsl(var(--muted) / 0.5)', padding: '10px 14px', 'border-radius': '8px', border: '1px solid hsl(var(--border))' }}>
+                      <div style={{ 'font-size': '11px', color: 'hsl(var(--muted-foreground))', 'margin-bottom': '4px' }}>WhatsApp / Mobile</div>
+                      <div style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'space-between', gap: '8px' }}>
+                        <span style={{ 'font-weight': '700', 'font-size': '13px' }}>
+                          {user().mobile || 'Not configured'}
+                        </span>
+                        <Show when={user().mobile}>
+                          <a
+                            href={`https://wa.me/${user().mobile!.replace(/[^0-9]/g, '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            class="admin-btn-secondary"
+                            style={{ padding: '2px 8px', 'font-size': '11px', color: '#10b981' }}
+                          >
+                            WhatsApp ↗
+                          </a>
+                        </Show>
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'hsl(var(--muted) / 0.5)', padding: '10px 14px', 'border-radius': '8px', border: '1px solid hsl(var(--border))' }}>
+                      <div style={{ 'font-size': '11px', color: 'hsl(var(--muted-foreground))', 'margin-bottom': '4px' }}>Support Coverage</div>
+                      <div>
+                        <span style={{ 'font-weight': '700', color: user().is_supported ? '#10b981' : 'hsl(var(--muted-foreground))' }}>
+                          {user().is_supported ? '✓ 24/7 Priority Support Active' : 'Standard Community'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Connected Providers */}
+                <div class="modal-section">
+                  <div class="modal-section-title">
+                    <span>🔌</span> Connected AI Providers ({user().connected_providers.length})
+                  </div>
+                  <div style={{ display: 'flex', 'flex-wrap': 'wrap', gap: '8px' }}>
+                    <For each={user().connected_providers}>
+                      {(p) => (
+                        <div class="provider-pill" style={{ padding: '6px 12px', 'border-radius': '8px' }}>
+                          <Show when={p.is_free} fallback={<span class="badge-paid">💎 PAID</span>}>
+                            <span class="badge-free">🟢 FREE</span>
+                          </Show>
+                          <span style={{ 'font-weight': '700', color: 'hsl(var(--foreground))' }}>{p.clean_provider}</span>
+                          <Show when={p.key_prefix}>
+                            <span style={{ 'font-size': '10px', color: 'hsl(var(--muted-foreground))', 'font-family': 'monospace' }}>
+                              ({p.key_prefix})
+                            </span>
+                          </Show>
+                          <span style={{ 'font-size': '10px', color: '#10b981', 'margin-left': '4px' }}>● Verified</span>
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </div>
+
+                {/* Section 3: User Harnesses & Fallback Chains */}
+                <div class="modal-section">
+                  <div class="modal-section-title">
+                    <span>🤖</span> Configured Agent Harnesses & Failover Chains ({user().harnesses.length})
+                  </div>
+                  <For each={user().harnesses}>
+                    {(harness) => {
+                      const pt = () => harness.primary_tier;
+                      const fallbacks = () => pt()?.fallbacks || [];
+
+                      return (
+                        <div class="modal-harness-card">
+                          <div style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'space-between', 'margin-bottom': '8px', 'flex-wrap': 'wrap', gap: '6px' }}>
+                            <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
+                              <span style={{ 'font-weight': '800', 'font-size': '14px', color: 'hsl(var(--foreground))' }}>
+                                @{harness.agent_name}
+                              </span>
+                              <span style={{ 'font-size': '11px', background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', padding: '1px 6px', 'border-radius': '4px', 'font-weight': '600' }}>
+                                {harness.agent_platform || 'gateway harness'}
+                              </span>
+                            </div>
+                            <div style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))' }}>
+                              {formatTokens(harness.total_tokens)} tokens • ${harness.total_cost.toFixed(3)} USD • {harness.total_messages.toLocaleString()} reqs
+                            </div>
+                          </div>
+
+                          {/* Primary Model */}
+                          <div style={{ 'margin-bottom': '10px', display: 'flex', 'align-items': 'center', gap: '8px' }}>
+                            <span style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))' }}>Primary Model:</span>
+                            <span style={{ 'font-weight': '700', 'font-size': '13px' }}>
+                              {pt()?.clean_primary_model || 'Auto-Routing'}
+                            </span>
+                            <Show when={pt()?.is_primary_free} fallback={<span class="badge-paid">💎 PAID</span>}>
+                              <span class="badge-free">🟢 FREE</span>
+                            </Show>
+                            <span style={{ 'font-size': '11px', color: 'hsl(var(--muted-foreground))' }}>
+                              (via {pt()?.clean_primary_provider || 'Default'})
+                            </span>
+                          </div>
+
+                          {/* Fallbacks */}
+                          <div>
+                            <div style={{ 'font-size': '11px', 'font-weight': '700', color: 'hsl(var(--muted-foreground))', 'margin-bottom': '6px' }}>
+                              ARMED FALLBACK PIPELINE ({fallbacks().length} STEPS):
+                            </div>
+                            <Show
+                              when={fallbacks().length > 0}
+                              fallback={<span style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))' }}>No fallbacks configured</span>}
+                            >
+                              <div class="fallback-chain">
+                                <For each={fallbacks()}>
+                                  {(fb, idx) => (
+                                    <>
+                                      <div class="fallback-step-chip">
+                                        <span style={{ 'font-weight': '700', color: '#0284c7' }}>#{fb.rank}</span>
+                                        <span>{fb.clean_model}</span>
+                                        <Show when={fb.is_free} fallback={<span class="badge-paid" style={{ 'font-size': '9px', padding: '1px 4px' }}>PAID</span>}>
+                                          <span class="badge-free" style={{ 'font-size': '9px', padding: '1px 4px' }}>FREE</span>
+                                        </Show>
+                                      </div>
+                                      <Show when={idx() < fallbacks().length - 1}>
+                                        <span class="fallback-arrow">➔</span>
+                                      </Show>
+                                    </>
+                                  )}
+                                </For>
+                              </div>
+                            </Show>
+                          </div>
+                        </div>
+                      );
+                    }}
+                  </For>
+                </div>
+
+                {/* Modal Footer */}
+                <div style={{ padding: '16px 24px', 'border-top': '1px solid hsl(var(--border))', display: 'flex', 'justify-content': 'flex-end', background: 'hsl(var(--muted) / 0.2)', 'border-radius': '0 0 20px 20px' }}>
+                  <button
+                    type="button"
+                    class="admin-btn-primary"
+                    onClick={() => setSelectedUser(null)}
+                    style={{ padding: '8px 24px' }}
+                  >
+                    Close Details
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </Show>
       </Show>
     </div>
   );
 };
-
-export default AdminAssets;
