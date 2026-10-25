@@ -1,4 +1,5 @@
-// User Profile Service with Neon PostgreSQL Persistence & Local Cache
+// User Profile Service with Neon PostgreSQL Persistence, Local Cache & Client-Side Image Compression
+
 export interface UserProfile {
   email: string;
   display_name: string;
@@ -10,13 +11,14 @@ export interface UserProfile {
   website?: string;
   github?: string;
   twitter?: string;
+  is_configured?: boolean;
   updated_at?: string;
 }
 
 export const PROFILE_BANNER_PRESETS = [
   {
     id: 'cyber-grid',
-    name: 'Cyber Grid (Default)',
+    name: 'Cyber Grid',
     url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1600&q=80',
   },
   {
@@ -93,7 +95,72 @@ export function getDefaultProfile(email: string, userName?: string): UserProfile
     website: isBoss ? 'https://writerify.org' : '',
     github: '',
     twitter: '',
+    is_configured: false, // Default is FALSE until configured in Account settings
   };
+}
+
+/**
+ * Compresses and scales an uploaded image file into an optimized Base64 data URL.
+ * Preserves crisp visual fidelity while keeping payload small for Postgres storage.
+ */
+export function compressImageFile(
+  file: File,
+  maxWidth = 1400,
+  maxHeight = 600,
+  quality = 0.85,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Selected file is not an image'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, width, height);
+
+        try {
+          const webpUrl = canvas.toDataURL('image/webp', quality);
+          if (webpUrl.startsWith('data:image/webp') && webpUrl.length > 50) {
+            resolve(webpUrl);
+            return;
+          }
+        } catch {
+          // Fallback to jpeg
+        }
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('Failed to load image for compression'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('Failed to read image file'));
+    reader.readAsDataURL(file);
+  });
 }
 
 export async function getUserProfile(email: string, userName?: string): Promise<UserProfile> {
@@ -150,6 +217,7 @@ async function fetchNeonProfile(
           website: row.website || fallback.website,
           github: row.github || '',
           twitter: row.twitter || '',
+          is_configured: Boolean(row.is_configured),
           updated_at: row.updated_at,
         };
         try {
@@ -168,13 +236,17 @@ async function fetchNeonProfile(
 export async function saveUserProfile(profile: UserProfile): Promise<boolean> {
   if (!profile.email) return false;
 
+  const profileToSave: UserProfile = {
+    ...profile,
+    is_configured: true, // Marking explicitly as configured upon save
+  };
+
   const cacheKey = `${PROFILE_CACHE_PREFIX}${profile.email.toLowerCase()}`;
 
-  // 1. Cache immediately
+  // 1. Cache immediately and notify active views
   try {
-    localStorage.setItem(cacheKey, JSON.stringify(profile));
-    // Dispatch instant update event for active views
-    window.dispatchEvent(new CustomEvent('kyros-profile-updated', { detail: profile }));
+    localStorage.setItem(cacheKey, JSON.stringify(profileToSave));
+    window.dispatchEvent(new CustomEvent('kyros-profile-updated', { detail: profileToSave }));
   } catch (err) {
     console.warn('Local profile save warning:', err);
   }
@@ -185,18 +257,19 @@ export async function saveUserProfile(profile: UserProfile): Promise<boolean> {
 
     const query = `
       INSERT INTO public.kyros_user_profiles (
-        email, display_name, avatar_url, banner_url, headline, bio, location, website, github, twitter, updated_at
+        email, display_name, avatar_url, banner_url, headline, bio, location, website, github, twitter, is_configured, updated_at
       ) VALUES (
-        ${esc(profile.email.toLowerCase())},
-        ${esc(profile.display_name)},
-        ${esc(profile.avatar_url)},
-        ${esc(profile.banner_url)},
-        ${esc(profile.headline)},
-        ${esc(profile.bio)},
-        ${esc(profile.location)},
-        ${esc(profile.website)},
-        ${esc(profile.github)},
-        ${esc(profile.twitter)},
+        ${esc(profileToSave.email.toLowerCase())},
+        ${esc(profileToSave.display_name)},
+        ${esc(profileToSave.avatar_url)},
+        ${esc(profileToSave.banner_url)},
+        ${esc(profileToSave.headline)},
+        ${esc(profileToSave.bio)},
+        ${esc(profileToSave.location)},
+        ${esc(profileToSave.website)},
+        ${esc(profileToSave.github)},
+        ${esc(profileToSave.twitter)},
+        TRUE,
         NOW()
       )
       ON CONFLICT (email) DO UPDATE SET
@@ -209,6 +282,7 @@ export async function saveUserProfile(profile: UserProfile): Promise<boolean> {
         website = EXCLUDED.website,
         github = EXCLUDED.github,
         twitter = EXCLUDED.twitter,
+        is_configured = TRUE,
         updated_at = NOW();
     `;
 

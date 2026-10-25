@@ -10,6 +10,7 @@ import {
 import {
   getUserProfile,
   saveUserProfile,
+  compressImageFile,
   PROFILE_BANNER_PRESETS,
   PROFILE_AVATAR_PRESETS,
   type UserProfile,
@@ -99,6 +100,47 @@ const Account: Component = () => {
   const [profileBannerUrl, setProfileBannerUrl] = createSignal(PROFILE_BANNER_PRESETS[0].url);
   const [profileLocation, setProfileLocation] = createSignal('');
   const [profileWebsite, setProfileWebsite] = createSignal('');
+
+  let bannerFileInput: HTMLInputElement | undefined;
+  let avatarFileInput: HTMLInputElement | undefined;
+  const [uploadingBanner, setUploadingBanner] = createSignal(false);
+  const [uploadingAvatar, setUploadingAvatar] = createSignal(false);
+
+  const handleBannerFileChange = async (e: Event) => {
+    const target = e.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+
+    setUploadingBanner(true);
+    try {
+      const compressedDataUrl = await compressImageFile(file, 1600, 500, 0.85);
+      setProfileBannerUrl(compressedDataUrl);
+      toast.success('Banner image uploaded & optimized successfully!');
+    } catch {
+      toast.error('Failed to load banner image');
+    } finally {
+      setUploadingBanner(false);
+      target.value = '';
+    }
+  };
+
+  const handleAvatarFileChange = async (e: Event) => {
+    const target = e.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    try {
+      const compressedDataUrl = await compressImageFile(file, 400, 400, 0.88);
+      setProfileAvatarUrl(compressedDataUrl);
+      toast.success('Profile photo uploaded & optimized successfully!');
+    } catch {
+      toast.error('Failed to load profile photo');
+    } finally {
+      setUploadingAvatar(false);
+      target.value = '';
+    }
+  };
 
   // Auto-load profile for active user
   createEffect(() => {
@@ -364,24 +406,68 @@ const Account: Component = () => {
 
         {/* Profile Edit Form */}
         <form class="settings-card" onSubmit={handleSaveProfile} style="margin-bottom: 2rem;">
-          {/* Banner Selector */}
+          {/* Banner Selector with Direct File Upload */}
           <div class="settings-card__row" style="align-items: flex-start;">
             <div class="settings-card__label">
               <span class="settings-card__label-title">Cover Banner Image</span>
               <span class="settings-card__label-desc">
-                Direct image URL or click any high-resolution preset below.
+                Upload your custom banner photo, enter an image URL, or choose a preset.
               </span>
             </div>
-            <div class="settings-card__control" style="width: 100%; max-width: 520px;">
-              <input
-                class="settings-card__input"
-                type="url"
-                aria-label="Banner image URL"
-                placeholder="https://..."
-                value={profileBannerUrl()}
-                onInput={(e) => setProfileBannerUrl(e.currentTarget.value)}
-              />
-              <div class="profile-preset-grid">
+            <div class="settings-card__control" style="width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 0.75rem;">
+              {/* Direct File Upload */}
+              <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={bannerFileInput}
+                  style="display: none;"
+                  onChange={handleBannerFileChange}
+                />
+                <button
+                  type="button"
+                  class="btn btn--primary btn--sm"
+                  onClick={() => bannerFileInput?.click()}
+                  disabled={uploadingBanner()}
+                  style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600;"
+                >
+                  <Show when={uploadingBanner()} fallback={
+                    <>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
+                      📁 Upload Banner Image
+                    </>
+                  }>
+                    <span>Optimizing Image...</span>
+                  </Show>
+                </button>
+                <span style="font-size: var(--font-size-xs); color: hsl(var(--muted-foreground));">
+                  PNG, JPG, WEBP (auto-scaled)
+                </span>
+              </div>
+
+              {/* URL Option */}
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 0.75rem; color: hsl(var(--muted-foreground)); text-transform: uppercase; font-weight: 600;">Or URL:</span>
+                <input
+                  class="settings-card__input"
+                  type="text"
+                  aria-label="Banner image URL"
+                  placeholder="https://..."
+                  value={profileBannerUrl().startsWith('data:') ? '(Custom image uploaded from device)' : profileBannerUrl()}
+                  onInput={(e) => setProfileBannerUrl(e.currentTarget.value)}
+                  style="font-size: 0.8125rem;"
+                />
+              </div>
+
+              {/* Presets */}
+              <div style="font-size: var(--font-size-xs); color: hsl(var(--muted-foreground)); margin-top: 0.25rem;">
+                Or pick a preset:
+              </div>
+              <div class="profile-preset-grid" style="margin-top: 0; margin-bottom: 0.5rem;">
                 <For each={PROFILE_BANNER_PRESETS}>
                   {(preset) => (
                     <button
@@ -398,24 +484,67 @@ const Account: Component = () => {
             </div>
           </div>
 
-          {/* Avatar Selector */}
+          {/* Avatar Selector with Direct File Upload */}
           <div class="settings-card__row" style="align-items: flex-start;">
             <div class="settings-card__label">
               <span class="settings-card__label-title">Profile Avatar</span>
               <span class="settings-card__label-desc">
-                Direct avatar image URL or select from curated 3D avatar presets.
+                Upload your personal photo, enter an image URL, or pick a 3D avatar.
               </span>
             </div>
-            <div class="settings-card__control" style="width: 100%; max-width: 520px;">
-              <input
-                class="settings-card__input"
-                type="url"
-                aria-label="Avatar image URL"
-                placeholder="https://..."
-                value={profileAvatarUrl()}
-                onInput={(e) => setProfileAvatarUrl(e.currentTarget.value)}
-              />
-              <div class="profile-preset-grid">
+            <div class="settings-card__control" style="width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 0.75rem;">
+              {/* Direct Photo Upload */}
+              <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={avatarFileInput}
+                  style="display: none;"
+                  onChange={handleAvatarFileChange}
+                />
+                <button
+                  type="button"
+                  class="btn btn--primary btn--sm"
+                  onClick={() => avatarFileInput?.click()}
+                  disabled={uploadingAvatar()}
+                  style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600;"
+                >
+                  <Show when={uploadingAvatar()} fallback={
+                    <>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                        <circle cx="12" cy="13" r="4" />
+                      </svg>
+                      📷 Upload Profile Photo
+                    </>
+                  }>
+                    <span>Optimizing Photo...</span>
+                  </Show>
+                </button>
+                <span style="font-size: var(--font-size-xs); color: hsl(var(--muted-foreground));">
+                  PNG, JPG, WEBP (square ratio recommended)
+                </span>
+              </div>
+
+              {/* URL Option */}
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 0.75rem; color: hsl(var(--muted-foreground)); text-transform: uppercase; font-weight: 600;">Or URL:</span>
+                <input
+                  class="settings-card__input"
+                  type="text"
+                  aria-label="Avatar image URL"
+                  placeholder="https://..."
+                  value={profileAvatarUrl().startsWith('data:') ? '(Custom photo uploaded from device)' : profileAvatarUrl()}
+                  onInput={(e) => setProfileAvatarUrl(e.currentTarget.value)}
+                  style="font-size: 0.8125rem;"
+                />
+              </div>
+
+              {/* Presets */}
+              <div style="font-size: var(--font-size-xs); color: hsl(var(--muted-foreground)); margin-top: 0.25rem;">
+                Or pick a 3D avatar preset:
+              </div>
+              <div class="profile-preset-grid" style="margin-top: 0; margin-bottom: 0.5rem;">
                 <For each={PROFILE_AVATAR_PRESETS}>
                   {(preset) => (
                     <button

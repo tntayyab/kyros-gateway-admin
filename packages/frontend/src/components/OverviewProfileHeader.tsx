@@ -1,7 +1,7 @@
 import { createSignal, createEffect, onMount, onCleanup, Show, type Component } from 'solid-js';
 import { A } from '@solidjs/router';
 import { authClient } from '../services/auth-client.js';
-import { getUserProfile, getDefaultProfile, type UserProfile } from '../services/user-profile.js';
+import { getUserProfile, type UserProfile } from '../services/user-profile.js';
 import '../styles/profile.css';
 
 const OverviewProfileHeader: Component = () => {
@@ -13,11 +13,16 @@ const OverviewProfileHeader: Component = () => {
 
   const loadProfile = async (email: string, name: string) => {
     if (!email) {
-      setProfile(getDefaultProfile('itstasdidnur@gmail.com', 'TN TAYYAB'));
+      setProfile(null);
       return;
     }
     const prof = await getUserProfile(email, name);
-    setProfile(prof);
+    // Only show if the user has explicitly configured their profile in Account settings
+    if (prof && prof.is_configured) {
+      setProfile(prof);
+    } else {
+      setProfile(null);
+    }
   };
 
   createEffect(() => {
@@ -26,15 +31,14 @@ const OverviewProfileHeader: Component = () => {
     if (email) {
       void loadProfile(email, name);
     } else {
-      // Default fallback while session loads or if not logged in
-      setProfile(getDefaultProfile('itstasdidnur@gmail.com', 'TN TAYYAB'));
+      setProfile(null);
     }
   });
 
   onMount(() => {
     const handleUpdate = (e: Event) => {
       const detail = (e as CustomEvent<UserProfile>).detail;
-      if (detail) {
+      if (detail && detail.is_configured) {
         setProfile(detail);
       }
     };
@@ -50,8 +54,9 @@ const OverviewProfileHeader: Component = () => {
     return email === 'itstasdidnur@gmail.com' || name.includes('TN TAYYAB');
   };
 
+  // Only render if profile is explicitly configured by user in Account settings
   return (
-    <Show when={profile()}>
+    <Show when={profile() && profile()?.is_configured}>
       {(prof) => (
         <section class="yt-profile-card" aria-label="User Profile Overview">
           {/* Cover Banner */}
@@ -89,7 +94,6 @@ const OverviewProfileHeader: Component = () => {
                   alt={prof().display_name}
                   class="yt-profile-avatar-img"
                   onError={(e) => {
-                    // Fallback avatar on broken url
                     (e.currentTarget as HTMLImageElement).src =
                       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=500&q=80';
                   }}
