@@ -46,6 +46,7 @@ import { authLabel, authBadgeFor } from '../components/AuthBadge.jsx';
 import { platformIcon } from 'manifest-shared';
 import GlobalOverviewSkeleton from '../components/GlobalOverviewSkeleton.jsx';
 import MessageTable from '../components/MessageTable.jsx';
+import OverviewProfileHeader from '../components/OverviewProfileHeader.jsx';
 import {
   COMPACT_COLUMNS,
   type MessageColumnKey,
@@ -592,6 +593,8 @@ const GlobalOverview: Component = () => {
       {/* Add Harness Modal */}
       <AddAgentModal open={addAgentOpen()} onClose={dismissAddAgent} />
       <UpgradeSuccessModal open={upgradeModalOpen()} onClose={closeUpgradeModal} />
+
+      <OverviewProfileHeader />
 
       {/* ── 1. Page Header ──────────────────────────────────────────── */}
       <div class="page-header" style="border-bottom: none; padding-bottom: 0;">

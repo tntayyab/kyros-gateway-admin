@@ -4,8 +4,17 @@ import {
   createSignal,
   onMount,
   Show,
+  For,
   type Component,
 } from 'solid-js';
+import {
+  getUserProfile,
+  saveUserProfile,
+  PROFILE_BANNER_PRESETS,
+  PROFILE_AVATAR_PRESETS,
+  type UserProfile,
+} from '../services/user-profile.js';
+import '../styles/profile.css';
 import { useNavigate, useSearchParams } from '@solidjs/router';
 import { Title, Meta } from '@solidjs/meta';
 import { authClient } from '../services/auth-client.js';
@@ -79,6 +88,64 @@ const Account: Component = () => {
   const [billingBusy, setBillingBusy] = createSignal(false);
   const [emailPrefsBusy, setEmailPrefsBusy] = createSignal(false);
   const [usageAlertsEnabled, setUsageAlertsEnabled] = createSignal(true);
+
+  // Profile Editor State & Persistence
+  const [profileLoaded, setProfileLoaded] = createSignal(false);
+  const [savingProfile, setSavingProfile] = createSignal(false);
+  const [profileName, setProfileName] = createSignal('');
+  const [profileHeadline, setProfileHeadline] = createSignal('');
+  const [profileBio, setProfileBio] = createSignal('');
+  const [profileAvatarUrl, setProfileAvatarUrl] = createSignal(PROFILE_AVATAR_PRESETS[0].url);
+  const [profileBannerUrl, setProfileBannerUrl] = createSignal(PROFILE_BANNER_PRESETS[0].url);
+  const [profileLocation, setProfileLocation] = createSignal('');
+  const [profileWebsite, setProfileWebsite] = createSignal('');
+
+  // Auto-load profile for active user
+  createEffect(() => {
+    const email = userEmail();
+    const name = userName();
+    if (!profileLoaded() && (email || session()?.data !== undefined)) {
+      void (async () => {
+        const prof = await getUserProfile(email, name);
+        setProfileName(prof.display_name);
+        setProfileHeadline(prof.headline);
+        setProfileBio(prof.bio);
+        setProfileAvatarUrl(prof.avatar_url);
+        setProfileBannerUrl(prof.banner_url);
+        setProfileLocation(prof.location || '');
+        setProfileWebsite(prof.website || '');
+        setProfileLoaded(true);
+      })();
+    }
+  });
+
+  const handleSaveProfile = async (e: Event) => {
+    e.preventDefault();
+    const email = userEmail() || 'itstasdidnur@gmail.com';
+    setSavingProfile(true);
+    try {
+      const updatedProfile: UserProfile = {
+        email,
+        display_name: profileName().trim() || userName() || 'TN TAYYAB',
+        headline: profileHeadline().trim(),
+        bio: profileBio().trim(),
+        avatar_url: profileAvatarUrl().trim() || PROFILE_AVATAR_PRESETS[0].url,
+        banner_url: profileBannerUrl().trim() || PROFILE_BANNER_PRESETS[0].url,
+        location: profileLocation().trim(),
+        website: profileWebsite().trim(),
+      };
+      const ok = await saveUserProfile(updatedProfile);
+      if (ok) {
+        toast.success('Profile saved permanently! Your Overview header has been updated.');
+      } else {
+        toast.success('Profile saved to local cache! Syncing in background.');
+      }
+    } catch {
+      toast.error('Failed to save profile. Please try again.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   const userName = () => session()?.data?.user?.name ?? '';
   const userEmail = () => session()?.data?.user?.email ?? '';
@@ -214,46 +281,320 @@ const Account: Component = () => {
           </div>
         </div>
 
-        {/* Profile Information */}
-        <h2 class="settings-section__title">Profile information</h2>
+        {/* Profile Customization Suite (YouTube & Facebook Style) */}
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <h2 class="settings-section__title" style="margin-bottom: 0.25rem;">
+              Profile & Identity (Overview Header)
+            </h2>
+            <p style="font-size: var(--font-size-sm); color: hsl(var(--muted-foreground)); margin: 0;">
+              Customize your YouTube & Facebook style cover banner, avatar, bio, and public persona
+              displayed on the Overview dashboard.
+            </p>
+          </div>
+        </div>
 
-        <div class="settings-card">
+        {/* Live Mini Preview */}
+        <div
+          class="yt-profile-card"
+          style="margin-bottom: 1.5rem; border: 1px solid hsl(var(--primary) / 0.35);"
+        >
+          <div
+            class="yt-profile-banner"
+            style={{
+              'background-image': `url("${profileBannerUrl()}")`,
+              height: '140px',
+            }}
+          >
+            <div class="yt-profile-banner__overlay" />
+            <div class="yt-profile-banner__floating-badge">
+              <span>Live Preview</span>
+            </div>
+          </div>
+          <div class="yt-profile-body" style="padding: 0 1.25rem 1.25rem 1.25rem;">
+            <div class="yt-profile-avatar-row" style="margin-top: -45px; margin-bottom: 0.5rem;">
+              <div class="yt-profile-avatar-wrapper" style="width: 86px; height: 86px;">
+                <img
+                  src={profileAvatarUrl()}
+                  alt="Avatar Preview"
+                  class="yt-profile-avatar-img"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = PROFILE_AVATAR_PRESETS[0].url;
+                  }}
+                />
+                <span class="yt-profile-online-badge" />
+              </div>
+            </div>
+            <div class="yt-profile-info">
+              <div class="yt-profile-name-row">
+                <h3 class="yt-profile-name" style="font-size: 1.25rem;">
+                  {profileName() || userName() || 'TN TAYYAB'}
+                </h3>
+                <span class="yt-profile-badge-superadmin">👑 Super Admin</span>
+              </div>
+              <p class="yt-profile-headline" style="font-size: 0.85rem;">
+                {profileHeadline() || 'Founder & Supreme Commander • KYROS Digital Systems'}
+              </p>
+              <Show when={profileBio()}>
+                <p class="yt-profile-bio" style="font-size: 0.8125rem;">
+                  {profileBio()}
+                </p>
+              </Show>
+              <div
+                class="yt-profile-meta-row"
+                style="margin-top: 0.5rem; padding-top: 0.5rem; font-size: 0.75rem;"
+              >
+                <Show when={profileLocation()}>
+                  <div class="yt-profile-meta-item">
+                    <span>📍 {profileLocation()}</span>
+                  </div>
+                </Show>
+                <Show when={profileWebsite()}>
+                  <div class="yt-profile-meta-item">
+                    <span>🌐 {profileWebsite()}</span>
+                  </div>
+                </Show>
+                <div class="yt-profile-meta-item">
+                  <span>✉️ {userEmail() || 'itstasdidnur@gmail.com'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Profile Edit Form */}
+        <form class="settings-card" onSubmit={handleSaveProfile} style="margin-bottom: 2rem;">
+          {/* Banner Selector */}
+          <div class="settings-card__row" style="align-items: flex-start;">
+            <div class="settings-card__label">
+              <span class="settings-card__label-title">Cover Banner Image</span>
+              <span class="settings-card__label-desc">
+                Direct image URL or click any high-resolution preset below.
+              </span>
+            </div>
+            <div class="settings-card__control" style="width: 100%; max-width: 520px;">
+              <input
+                class="settings-card__input"
+                type="url"
+                aria-label="Banner image URL"
+                placeholder="https://..."
+                value={profileBannerUrl()}
+                onInput={(e) => setProfileBannerUrl(e.currentTarget.value)}
+              />
+              <div class="profile-preset-grid">
+                <For each={PROFILE_BANNER_PRESETS}>
+                  {(preset) => (
+                    <button
+                      type="button"
+                      class={`profile-preset-card ${profileBannerUrl() === preset.url ? 'profile-preset-card--active' : ''}`}
+                      onClick={() => setProfileBannerUrl(preset.url)}
+                    >
+                      <img src={preset.url} alt={preset.name} class="profile-preset-card__thumb" />
+                      <div class="profile-preset-card__title">{preset.name}</div>
+                    </button>
+                  )}
+                </For>
+              </div>
+            </div>
+          </div>
+
+          {/* Avatar Selector */}
+          <div class="settings-card__row" style="align-items: flex-start;">
+            <div class="settings-card__label">
+              <span class="settings-card__label-title">Profile Avatar</span>
+              <span class="settings-card__label-desc">
+                Direct avatar image URL or select from curated 3D avatar presets.
+              </span>
+            </div>
+            <div class="settings-card__control" style="width: 100%; max-width: 520px;">
+              <input
+                class="settings-card__input"
+                type="url"
+                aria-label="Avatar image URL"
+                placeholder="https://..."
+                value={profileAvatarUrl()}
+                onInput={(e) => setProfileAvatarUrl(e.currentTarget.value)}
+              />
+              <div class="profile-preset-grid">
+                <For each={PROFILE_AVATAR_PRESETS}>
+                  {(preset) => (
+                    <button
+                      type="button"
+                      class={`profile-preset-card ${profileAvatarUrl() === preset.url ? 'profile-preset-card--active' : ''}`}
+                      onClick={() => setProfileAvatarUrl(preset.url)}
+                    >
+                      <img
+                        src={preset.url}
+                        alt={preset.name}
+                        class="profile-preset-card__thumb"
+                        style="object-position: center top;"
+                      />
+                      <div class="profile-preset-card__title">{preset.name}</div>
+                    </button>
+                  )}
+                </For>
+              </div>
+            </div>
+          </div>
+
+          {/* Display Name */}
           <div class="settings-card__row">
             <div class="settings-card__label">
-              <span class="settings-card__label-title">Display name</span>
-              <span class="settings-card__label-desc">Name shown throughout the dashboard.</span>
+              <span class="settings-card__label-title">Display Name</span>
+              <span class="settings-card__label-desc">
+                Name displayed on your banner and throughout the gateway.
+              </span>
             </div>
             <div class="settings-card__control">
               <input
                 class="settings-card__input"
                 type="text"
-                aria-label="Display name"
-                value={userName()}
-                readonly
+                aria-label="Display Name"
+                placeholder="e.g. TN TAYYAB"
+                value={profileName()}
+                onInput={(e) => setProfileName(e.currentTarget.value)}
+                required
               />
             </div>
           </div>
+
+          {/* Headline */}
           <div class="settings-card__row">
             <div class="settings-card__label">
-              <span class="settings-card__label-title">Email</span>
-              <span class="settings-card__label-desc">Used for account notifications.</span>
+              <span class="settings-card__label-title">Professional Headline</span>
+              <span class="settings-card__label-desc">
+                Short subtitle shown right below your name.
+              </span>
+            </div>
+            <div class="settings-card__control">
+              <input
+                class="settings-card__input"
+                type="text"
+                aria-label="Headline"
+                placeholder="e.g. Founder & Supreme Commander • KYROS Digital Systems"
+                value={profileHeadline()}
+                onInput={(e) => setProfileHeadline(e.currentTarget.value)}
+              />
+            </div>
+          </div>
+
+          {/* Bio */}
+          <div class="settings-card__row" style="align-items: flex-start;">
+            <div class="settings-card__label">
+              <span class="settings-card__label-title">Bio / Summary</span>
+              <span class="settings-card__label-desc">
+                Tell team members and users about your role and vision.
+              </span>
+            </div>
+            <div class="settings-card__control">
+              <textarea
+                class="settings-card__input"
+                style="min-height: 80px; resize: vertical; font-family: inherit; line-height: 1.45; padding: 0.6rem 0.75rem;"
+                aria-label="Bio"
+                placeholder="Write a brief bio..."
+                value={profileBio()}
+                onInput={(e) => setProfileBio(e.currentTarget.value)}
+              />
+            </div>
+          </div>
+
+          {/* Location */}
+          <div class="settings-card__row">
+            <div class="settings-card__label">
+              <span class="settings-card__label-title">Location</span>
+              <span class="settings-card__label-desc">City, Country or Remote.</span>
+            </div>
+            <div class="settings-card__control">
+              <input
+                class="settings-card__input"
+                type="text"
+                aria-label="Location"
+                placeholder="e.g. Dhaka, Bangladesh"
+                value={profileLocation()}
+                onInput={(e) => setProfileLocation(e.currentTarget.value)}
+              />
+            </div>
+          </div>
+
+          {/* Website */}
+          <div class="settings-card__row">
+            <div class="settings-card__label">
+              <span class="settings-card__label-title">Website URL</span>
+              <span class="settings-card__label-desc">
+                Your personal, company, or portfolio link.
+              </span>
+            </div>
+            <div class="settings-card__control">
+              <input
+                class="settings-card__input"
+                type="url"
+                aria-label="Website"
+                placeholder="https://writerify.org"
+                value={profileWebsite()}
+                onInput={(e) => setProfileWebsite(e.currentTarget.value)}
+              />
+            </div>
+          </div>
+
+          {/* Readonly Auth Email */}
+          <div class="settings-card__row">
+            <div class="settings-card__label">
+              <span class="settings-card__label-title">Permanent Auth Email</span>
+              <span class="settings-card__label-desc">
+                Linked authentication email (secured by Neon DB).
+              </span>
             </div>
             <div class="settings-card__control">
               <input
                 class="settings-card__input"
                 type="email"
                 aria-label="Email"
-                value={userEmail()}
+                value={userEmail() || 'itstasdidnur@gmail.com'}
                 readonly
+                style="opacity: 0.8; cursor: not-allowed;"
               />
             </div>
           </div>
-          <div class="settings-card__footer">
+
+          {/* Form Actions Footer */}
+          <div
+            class="settings-card__footer"
+            style="display: flex; justify-content: space-between; align-items: center;"
+          >
             <span style="font-size: var(--font-size-xs); color: hsl(var(--muted-foreground));">
-              Profile information is managed through your authentication provider.
+              Saved permanently to Neon PostgreSQL cloud database and local fast-cache.
             </span>
+            <button
+              type="submit"
+              class="btn btn--primary"
+              disabled={savingProfile()}
+              style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600;"
+            >
+              <Show
+                when={savingProfile()}
+                fallback={
+                  <>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Save Profile Changes
+                  </>
+                }
+              >
+                <span>Saving to Cloud...</span>
+              </Show>
+            </button>
           </div>
-        </div>
+        </form>
 
         {/* Security */}
         <Show when={hasCredentialAccount()}>

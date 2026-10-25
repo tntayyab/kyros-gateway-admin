@@ -1,0 +1,312 @@
+/* YouTube / Facebook style Profile Card for Overview & Account */
+
+.yt-profile-card {
+  position: relative;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg, 16px);
+  overflow: hidden;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
+  margin-bottom: var(--gap-xl, 2rem);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.yt-profile-banner {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: hsl(var(--muted));
+}
+
+.yt-profile-banner__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.15) 0%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 0.75) 100%
+  );
+}
+
+.yt-profile-banner__floating-badge {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+  color: #ffffff;
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  z-index: 2;
+}
+
+.yt-profile-body {
+  position: relative;
+  padding: 0 1.5rem 1.5rem 1.5rem;
+}
+
+.yt-profile-avatar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: -60px;
+  margin-bottom: 1rem;
+  position: relative;
+  z-index: 3;
+}
+
+.yt-profile-avatar-wrapper {
+  position: relative;
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  border: 4px solid hsl(var(--card));
+  background: hsl(var(--card));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.yt-profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.yt-profile-online-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 16px;
+  height: 16px;
+  background: #10b981;
+  border: 3px solid hsl(var(--card));
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+}
+
+.yt-profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.yt-btn-customize {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.25rem;
+  padding: 0 1rem;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border: none;
+  border-radius: var(--radius, 8px);
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease,
+    box-shadow 0.15s ease;
+  box-shadow: 0 2px 8px hsl(var(--primary) / 0.25);
+}
+
+.yt-btn-customize:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+  box-shadow: 0 4px 12px hsl(var(--primary) / 0.35);
+}
+
+.yt-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.25rem;
+  padding: 0 1rem;
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius, 8px);
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.yt-btn-secondary:hover {
+  background: hsl(var(--accent));
+}
+
+.yt-profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.yt-profile-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.yt-profile-name {
+  font-size: 1.625rem;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.yt-profile-badge-superadmin {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.65rem;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(234, 88, 12, 0.15));
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 9999px;
+  color: #f59e0b;
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: 600;
+}
+
+.yt-profile-badge-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.65rem;
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  border-radius: 9999px;
+  color: hsl(var(--muted-foreground));
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: 600;
+}
+
+.yt-profile-headline {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: hsl(var(--primary));
+  margin: 0;
+}
+
+.yt-profile-bio {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: hsl(var(--muted-foreground));
+  margin: 0.25rem 0 0 0;
+  max-width: 820px;
+}
+
+.yt-profile-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid hsl(var(--border) / 0.6);
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.yt-profile-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.yt-profile-meta-link {
+  color: hsl(var(--primary));
+  text-decoration: none;
+}
+
+.yt-profile-meta-link:hover {
+  text-decoration: underline;
+}
+
+/* Preset Picker in Account Settings */
+.profile-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.profile-preset-card {
+  position: relative;
+  border: 2px solid hsl(var(--border));
+  border-radius: var(--radius, 8px);
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+  background: hsl(var(--card));
+  text-align: center;
+}
+
+.profile-preset-card:hover {
+  border-color: hsl(var(--primary));
+  transform: translateY(-2px);
+}
+
+.profile-preset-card--active {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.25);
+}
+
+.profile-preset-card__thumb {
+  width: 100%;
+  height: 60px;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-preset-card__title {
+  padding: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .yt-profile-banner {
+    height: 140px;
+  }
+  .yt-profile-avatar-wrapper {
+    width: 80px;
+    height: 80px;
+  }
+  .yt-profile-avatar-row {
+    margin-top: -40px;
+  }
+  .yt-profile-name {
+    font-size: 1.25rem;
+  }
+  .yt-profile-actions {
+    margin-top: 0.5rem;
+  }
+}
