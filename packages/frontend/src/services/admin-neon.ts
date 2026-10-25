@@ -141,10 +141,35 @@ export async function whitelistNewMember(email: string, name: string, role: stri
   return execAdminSql(query);
 }
 
+export async function blockMember(email: string, blockedBy = 'Boss TN TAYYAB') {
+  const escapedEmail = email.trim().toLowerCase().replace(/'/g, "''");
+  const escapedBy = blockedBy.replace(/'/g, "''");
+  // Terminate any active sessions immediately
+  await execAdminSql(`DELETE FROM public.session WHERE "userId" IN (SELECT id FROM public.user WHERE LOWER(email) = LOWER('${escapedEmail}'));`);
+  return execAdminSql(`
+    UPDATE public.kyros_access_control
+    SET status = 'rejected', approved_by = '${escapedBy}', notes = 'Blocked by Admin', updated_at = NOW()
+    WHERE LOWER(email) = LOWER('${escapedEmail}');
+  `);
+}
+
+export async function unblockMember(email: string) {
+  const escapedEmail = email.trim().toLowerCase().replace(/'/g, "''");
+  return execAdminSql(`
+    UPDATE public.kyros_access_control
+    SET status = 'pending', notes = 'Unblocked by Admin - Pending Review', updated_at = NOW()
+    WHERE LOWER(email) = LOWER('${escapedEmail}');
+  `);
+}
+
 export async function deleteMember(email: string) {
   const escapedEmail = email.trim().toLowerCase().replace(/'/g, "''");
-  const query = `DELETE FROM public.kyros_access_control WHERE LOWER(email) = LOWER('${escapedEmail}');`;
-  return execAdminSql(query);
+  // Complete cascading wipe across all tables so account can be fresh tested
+  await execAdminSql(`DELETE FROM public.session WHERE "userId" IN (SELECT id FROM public.user WHERE LOWER(email) = LOWER('${escapedEmail}'));`);
+  await execAdminSql(`DELETE FROM public.account WHERE "userId" IN (SELECT id FROM public.user WHERE LOWER(email) = LOWER('${escapedEmail}'));`);
+  await execAdminSql(`DELETE FROM public.user WHERE LOWER(email) = LOWER('${escapedEmail}');`);
+  await execAdminSql(`DELETE FROM public.kyros_email_verifications WHERE LOWER(email) = LOWER('${escapedEmail}');`);
+  return execAdminSql(`DELETE FROM public.kyros_access_control WHERE LOWER(email) = LOWER('${escapedEmail}');`);
 }
 
 

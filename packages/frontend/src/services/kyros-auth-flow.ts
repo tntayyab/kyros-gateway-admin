@@ -302,6 +302,17 @@ export async function requestRegistrationOtp(
     return { success: false, error: 'Password must be at least 8 characters long.' };
   }
 
+  // Check if email has been blocked/rejected by Admin
+  const accessRows = await execAdminSql<{ status: string }>(
+    `SELECT status FROM public.kyros_access_control WHERE LOWER(email) = LOWER('${cleanEmail.replace(/'/g, "''")}');`
+  );
+  if (accessRows.length > 0 && (accessRows[0].status === 'rejected' || accessRows[0].status === 'revoked')) {
+    return {
+      success: false,
+      error: 'Access Denied: This account has been blocked by Admin (Boss TN TAYYAB).',
+    };
+  }
+
   // Check if email already has an approved account
   const existingUsers = await execAdminSql<{ id: string; email: string }>(
     `SELECT id, email FROM public.user WHERE LOWER(email) = LOWER('${cleanEmail.replace(/'/g, "''")}');`

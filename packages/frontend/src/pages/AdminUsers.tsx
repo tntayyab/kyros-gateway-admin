@@ -11,6 +11,8 @@ import {
   updateMemberFinancials,
   whitelistNewMember,
   deleteMember,
+  blockMember,
+  unblockMember,
   type GatewayMember,
 } from '../services/admin-neon.js';
 import '../styles/admin.css';
@@ -188,11 +190,42 @@ export const AdminUsers: Component = () => {
     }
     try {
       setActionBusy(true);
-      await updateMemberStatus(email, 'revoked');
-      toast.success(`Revoked access for ${email}`);
+      await blockMember(email, 'Boss TN TAYYAB');
+      toast.success(`Blocked access for ${email}`);
       await loadMembers();
     } catch (err: any) {
       toast.error(err.message || 'Failed to revoke');
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleBlock(email: string) {
+    if (email === 'itstasdidnur@gmail.com') {
+      toast.error('Cannot block Master Admin Boss!');
+      return;
+    }
+    if (!confirm(`Are you sure you want to block ${email}? They will be immediately blocked from accessing Writerify Gateway.`)) return;
+    try {
+      setActionBusy(true);
+      await blockMember(email, 'Boss TN TAYYAB');
+      toast.success(`Blocked ${email} from Writerify Gateway`);
+      await loadMembers();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to block member');
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleUnblock(email: string) {
+    try {
+      setActionBusy(true);
+      await unblockMember(email);
+      toast.success(`Unblocked ${email}. Status changed to pending approval.`);
+      await loadMembers();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to unblock member');
     } finally {
       setActionBusy(false);
     }
@@ -228,7 +261,7 @@ export const AdminUsers: Component = () => {
     try {
       setActionBusy(true);
       await deleteMember(m.email);
-      toast.success(`Removed ${m.email}`);
+      toast.success(`Completely wiped ${m.email}. Account is reset for fresh sign-up testing!`);
       await loadMembers();
     } catch (err: any) {
       toast.error(err.message || 'Deletion failed');
@@ -728,7 +761,7 @@ export const AdminUsers: Component = () => {
                                       : 'badge-revoked'
                                 }
                               >
-                                {m.status || 'pending'}
+                                {m.status === 'rejected' || m.status === 'revoked' ? 'blocked ⛔' : m.status || 'pending'}
                               </span>
 
                               <Show when={m.is_email_verified}>
@@ -747,7 +780,8 @@ export const AdminUsers: Component = () => {
                                 </span>
                               </Show>
 
-                              <Show when={m.status !== 'approved'}>
+                              {/* Approve Button */}
+                              <Show when={m.status !== 'approved' && m.status !== 'rejected' && m.status !== 'revoked'}>
                                 <button
                                   type="button"
                                   onClick={() => handleApprove(m.email)}
@@ -767,15 +801,17 @@ export const AdminUsers: Component = () => {
                                 </button>
                               </Show>
 
+                              {/* Block Button */}
                               <Show
                                 when={
-                                  m.status === 'approved' && m.email !== 'itstasdidnur@gmail.com'
+                                  m.status !== 'rejected' && m.status !== 'revoked' && m.email !== 'itstasdidnur@gmail.com'
                                 }
                               >
                                 <button
                                   type="button"
-                                  onClick={() => handleRevoke(m.email)}
+                                  onClick={() => handleBlock(m.email)}
                                   disabled={actionBusy()}
+                                  title="Block this user from accessing gateway"
                                   style={{
                                     background: '#dc2626',
                                     color: '#fff',
@@ -787,7 +823,28 @@ export const AdminUsers: Component = () => {
                                     cursor: 'pointer',
                                   }}
                                 >
-                                  Revoke
+                                  Block ⛔
+                                </button>
+                              </Show>
+
+                              {/* Unblock Button */}
+                              <Show when={m.status === 'rejected' || m.status === 'revoked'}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUnblock(m.email)}
+                                  disabled={actionBusy()}
+                                  style={{
+                                    background: '#0284c7',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '4px 8px',
+                                    'border-radius': '6px',
+                                    'font-size': '11px',
+                                    'font-weight': '600',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  Unblock
                                 </button>
                               </Show>
                             </div>
