@@ -19,6 +19,7 @@ const DEV_PASSWORD = 'manifest';
 const Login: Component = () => {
   const [email, setEmail] = createSignal('');
   const [password, setPassword] = createSignal('');
+  const [showPassword, setShowPassword] = createSignal(false);
   const [error, setError] = createSignal('');
   const [loading, setLoading] = createSignal(false);
   const [needsVerification, setNeedsVerification] = createSignal(false);
@@ -195,17 +196,43 @@ const Login: Component = () => {
         </Show>
         <label class="auth-form__label" for={passwordId}>
           Password
-          <input
-            id={passwordId}
-            class="auth-form__input"
-            type="password"
-            autocomplete="current-password"
-            placeholder="Enter your password"
-            value={password()}
-            onInput={(e) => setPassword(e.currentTarget.value)}
-            required
-            aria-describedby={error() ? errorId : undefined}
-          />
+          <div class="auth-form__password-wrapper">
+            <input
+              id={passwordId}
+              class="auth-form__input"
+              type={showPassword() ? 'text' : 'password'}
+              autocomplete="current-password"
+              placeholder="Enter your password"
+              value={password()}
+              onInput={(e) => setPassword(e.currentTarget.value)}
+              required
+              aria-describedby={error() ? errorId : undefined}
+            />
+            <button
+              type="button"
+              class="auth-form__eye-btn"
+              onClick={() => setShowPassword(!showPassword())}
+              aria-label={showPassword() ? 'Hide password' : 'Show password'}
+              tabindex="-1"
+            >
+              <Show
+                when={showPassword()}
+                fallback={
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                }
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                  <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                  <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                  <line x1="2" x2="22" y1="2" y2="22"/>
+                </svg>
+              </Show>
+            </button>
+          </div>
         </label>
         <div class="auth-form__actions">
           <A href="/reset-password" class="auth-form__forgot">
@@ -216,12 +243,7 @@ const Login: Component = () => {
           {loading() ? <span class="spinner" /> : 'Sign in'}
         </button>
       </form>
-      <div class="auth-footer">
-        <span>Don't have an account? </span>
-        <A href={appendSearch('/register', location.search)} class="auth-footer__link">
-          Sign up
-        </A>
-      </div>
+
     </>
   );
 };

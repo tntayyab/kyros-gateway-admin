@@ -48,7 +48,7 @@ const AuthGuard: ParentComponent = (props) => {
     // and costs one indexed query.
     loadPlan().then((status) => {
       // /register?step=plan is the plan selection destination — never intercept it.
-      if (location.pathname === '/register') {
+      if (location.pathname === '/ninjas' || location.pathname === '/register') {
         setPlanChecked(true);
         return;
       }
@@ -62,7 +62,7 @@ const AuthGuard: ParentComponent = (props) => {
         return;
       }
       if (status.enabled && status.plan !== 'pro') {
-        navigate('/register?step=plan', { replace: true });
+        navigate('/ninjas?step=plan', { replace: true });
         return;
       }
       if (userId) markPlanChosen(userId);

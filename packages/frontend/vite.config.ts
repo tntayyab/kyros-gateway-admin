@@ -72,6 +72,11 @@ export default defineConfig(({ command }) => ({
     // drawer is dead-code-eliminated anyway.
     __WINGMAN_URL__: JSON.stringify(command === 'serve' ? wingmanDrawerUrl : ''),
   },
+  resolve: {
+    alias: {
+      'manifest-shared': resolve(import.meta.dirname, '../shared/dist/esm/index.js'),
+    },
+  },
   plugins: [
     solidPlugin(),
     wingmanDevProxy({ port: wingmanPort, upstream: wingmanUpstream }),

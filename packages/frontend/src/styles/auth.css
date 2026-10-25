@@ -109,6 +109,40 @@
   box-shadow: 0 0 0 2px hsl(var(--primary) / 0.15);
 }
 
+.auth-form__password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.auth-form__password-wrapper .auth-form__input {
+  width: 100%;
+  padding-right: 2.75rem;
+}
+
+.auth-form__eye-btn {
+  position: absolute;
+  right: 0.625rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: hsl(var(--muted-foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem;
+  border-radius: var(--radius);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.auth-form__eye-btn:hover {
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--muted) / 0.5);
+}
+
 .auth-form__actions {
   display: flex;
   justify-content: flex-end;

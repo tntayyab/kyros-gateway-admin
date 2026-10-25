@@ -722,13 +722,13 @@ const Welcome: Component = () => {
   const skipOnboarding = () => {
     const uid = userId();
     if (uid) markOnboardingDone(uid);
-    navigate('/register?step=plan');
+    navigate('/ninjas?step=plan');
   };
 
   const openOnboardingPaywall = () => {
     const uid = userId();
     if (uid) markOnboardingDone(uid);
-    navigate('/register?step=plan');
+    navigate('/ninjas?step=plan');
   };
 
   // Which steps are completed, for the sidebar checkmarks. Steps without

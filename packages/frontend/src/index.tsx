@@ -166,7 +166,8 @@ render(
         </Route>
         <Route path="/" component={GuestLayout}>
           <Route path="/login" component={Login} />
-          <Route path="/register" component={Register} />
+          <Route path="/ninjas" component={Register} />
+          <Route path="/register" component={() => <Navigate href="/login" />} />
           <Route path="/reset-password" component={ResetPassword} />
         </Route>
         <Route path="/setup" component={AuthLayout}>

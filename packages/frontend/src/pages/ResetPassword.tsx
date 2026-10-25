@@ -106,6 +106,8 @@ const RequestResetForm: Component = () => {
 const SetNewPasswordForm: Component<{ token: string }> = (props) => {
   const [password, setPassword] = createSignal('');
   const [confirmPassword, setConfirmPassword] = createSignal('');
+  const [showPassword, setShowPassword] = createSignal(false);
+  const [showConfirmPassword, setShowConfirmPassword] = createSignal(false);
   const [error, setError] = createSignal('');
   const [loading, setLoading] = createSignal(false);
   const [success, setSuccess] = createSignal(false);
@@ -173,34 +175,86 @@ const SetNewPasswordForm: Component<{ token: string }> = (props) => {
           )}
           <label class="auth-form__label" for={passwordId}>
             New password
-            <input
-              ref={(el) => requestAnimationFrame(() => el.focus())}
-              id={passwordId}
-              class="auth-form__input"
-              type="password"
-              autocomplete="new-password"
-              placeholder="Enter new password"
-              value={password()}
-              onInput={(e) => setPassword(e.currentTarget.value)}
-              required
-              minLength={8}
-              aria-describedby={error() ? errorId : undefined}
-            />
+            <div class="auth-form__password-wrapper">
+              <input
+                ref={(el) => requestAnimationFrame(() => el.focus())}
+                id={passwordId}
+                class="auth-form__input"
+                type={showPassword() ? 'text' : 'password'}
+                autocomplete="new-password"
+                placeholder="Enter new password"
+                value={password()}
+                onInput={(e) => setPassword(e.currentTarget.value)}
+                required
+                minLength={8}
+                aria-describedby={error() ? errorId : undefined}
+              />
+              <button
+                type="button"
+                class="auth-form__eye-btn"
+                onClick={() => setShowPassword(!showPassword())}
+                aria-label={showPassword() ? 'Hide password' : 'Show password'}
+                tabindex="-1"
+              >
+                <Show
+                  when={showPassword()}
+                  fallback={
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  }
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                    <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                    <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                    <line x1="2" x2="22" y1="2" y2="22"/>
+                  </svg>
+                </Show>
+              </button>
+            </div>
           </label>
           <label class="auth-form__label" for={confirmId}>
             Confirm password
-            <input
-              id={confirmId}
-              class="auth-form__input"
-              type="password"
-              autocomplete="new-password"
-              placeholder="Confirm new password"
-              value={confirmPassword()}
-              onInput={(e) => setConfirmPassword(e.currentTarget.value)}
-              required
-              minLength={8}
-              aria-describedby={error() ? errorId : undefined}
-            />
+            <div class="auth-form__password-wrapper">
+              <input
+                id={confirmId}
+                class="auth-form__input"
+                type={showConfirmPassword() ? 'text' : 'password'}
+                autocomplete="new-password"
+                placeholder="Confirm new password"
+                value={confirmPassword()}
+                onInput={(e) => setConfirmPassword(e.currentTarget.value)}
+                required
+                minLength={8}
+                aria-describedby={error() ? errorId : undefined}
+              />
+              <button
+                type="button"
+                class="auth-form__eye-btn"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword())}
+                aria-label={showConfirmPassword() ? 'Hide password' : 'Show password'}
+                tabindex="-1"
+              >
+                <Show
+                  when={showConfirmPassword()}
+                  fallback={
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  }
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                    <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                    <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                    <line x1="2" x2="22" y1="2" y2="22"/>
+                  </svg>
+                </Show>
+              </button>
+            </div>
           </label>
           <button class="auth-form__submit" type="submit" disabled={loading()}>
             {loading() ? <span class="spinner" /> : 'Reset password'}
