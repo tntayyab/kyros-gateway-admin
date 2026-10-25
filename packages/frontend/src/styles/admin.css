@@ -518,3 +518,129 @@
   color: hsl(var(--muted-foreground));
   margin: 0 0 20px 0;
 }
+
+
+/* AI Assets & Monitoring Specific Styles */
+.badge-free {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+}
+
+.dark .badge-free {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.badge-paid {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+}
+
+.dark .badge-paid {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.fallback-chain {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.fallback-step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: hsl(var(--muted) / 0.7);
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  font-size: 11px;
+  color: hsl(var(--foreground));
+  font-family: var(--font-family-mono, monospace);
+  transition: all 0.15s ease;
+}
+
+.fallback-step-chip:hover {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--card));
+}
+
+.fallback-arrow {
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.provider-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+}
+
+.admin-nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid hsl(var(--border));
+  margin-bottom: 20px;
+  padding-bottom: 0px;
+}
+
+.admin-nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px 8px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  bottom: -1px;
+}
+
+.admin-nav-tab:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted) / 0.4);
+}
+
+.admin-nav-tab--active {
+  color: hsl(var(--primary));
+  background: hsl(var(--card));
+  border-color: hsl(var(--border));
+  border-bottom: 2px solid hsl(var(--primary));
+}
