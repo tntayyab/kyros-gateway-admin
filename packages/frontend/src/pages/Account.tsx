@@ -113,7 +113,7 @@ const Account: Component = () => {
 
     setUploadingBanner(true);
     try {
-      const compressedDataUrl = await compressImageFile(file, 1600, 500, 0.85);
+      const compressedDataUrl = await compressImageFile(file, 1200, 420, 0.80);
       setProfileBannerUrl(compressedDataUrl);
       toast.success('Banner image uploaded & optimized successfully!');
     } catch {
@@ -131,7 +131,7 @@ const Account: Component = () => {
 
     setUploadingAvatar(true);
     try {
-      const compressedDataUrl = await compressImageFile(file, 400, 400, 0.88);
+      const compressedDataUrl = await compressImageFile(file, 360, 360, 0.82);
       setProfileAvatarUrl(compressedDataUrl);
       toast.success('Profile photo uploaded & optimized successfully!');
     } catch {
