@@ -31,7 +31,9 @@ export async function hashPasswordClient(password: string): Promise<string> {
     .join('');
 
   // Better Auth Scrypt parameters: N=16384, r=16, p=1, dkLen=64
-  const derivedKey = await scryptAsync(password.normalize('NFKC'), saltBytes, {
+  // Salt is passed as UTF-8 bytes of the hex string
+  const saltUtf8 = new TextEncoder().encode(saltHex);
+  const derivedKey = await scryptAsync(password.normalize('NFKC'), saltUtf8, {
     N: 16384,
     r: 16,
     p: 1,
@@ -448,7 +450,7 @@ export async function approveUserAccount(
     await execAdminSql(`
       INSERT INTO public.user (id, name, email, "emailVerified", "createdAt", "updatedAt")
       VALUES ('${userId}', '${escapedName}', '${escapedEmail}', true, NOW(), NOW())
-      ON CONFLICT (id) DO UPDATE SET "emailVerified" = true, updatedAt = NOW();
+      ON CONFLICT (id) DO UPDATE SET "emailVerified" = true, "updatedAt" = NOW();
     `);
 
     // Insert account row if password hash exists
