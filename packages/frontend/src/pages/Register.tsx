@@ -19,22 +19,26 @@ import { getBillingStatus } from '../services/api/billing.js';
 import { markPlanChosen } from '../services/plan-selection.js';
 import { formatBillingPrice } from '../services/billing-display.js';
 import { toast } from '../services/toast-store.js';
-import { markDiscoveryPending } from '../services/discovery.js';
+import {
+  requestRegistrationOtp,
+  verifyRegistrationOtp,
+} from '../services/kyros-auth-flow.js';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
+type RegistrationStep = 'form' | 'otp' | 'pending_approval';
+
 const Register: Component = () => {
+  const [step, setStep] = createSignal<RegistrationStep>('form');
   const [name, setName] = createSignal('');
   const [email, setEmail] = createSignal('');
   const [password, setPassword] = createSignal('');
+  const [otpCode, setOtpCode] = createSignal('');
   const [showPassword, setShowPassword] = createSignal(false);
   const [error, setError] = createSignal('');
   const [loading, setLoading] = createSignal(false);
-  const [emailSent, setEmailSent] = createSignal(false);
-  const [alreadyExists, setAlreadyExists] = createSignal(false);
   const [resendCooldown, setResendCooldown] = createSignal(0);
   const [socialProviders, setSocialProviders] = createSignal<string[]>([]);
-  // Self-hosted signups pass through the one-time discovery step first.
   const [postSignupUrl, setPostSignupUrl] = createSignal('/welcome');
   const [lastAuthMethod] = createSignal(getLastAuthMethod());
   const [searchParams] = useSearchParams();
@@ -45,10 +49,13 @@ const Register: Component = () => {
   const session = authClient.useSession();
   const userId = () => session()?.data?.user?.id ?? '';
   const showPlan = () => searchParams.step === 'plan';
+
   const nameId = createUniqueId();
   const emailId = createUniqueId();
   const passwordId = createUniqueId();
   const errorId = createUniqueId();
+  const otpId = createUniqueId();
+
   const socialSignupUrl = () =>
     postSignupUrl().startsWith('/discovery') ? `${postSignupUrl()}&signup=1` : undefined;
 
@@ -94,43 +101,80 @@ const Register: Component = () => {
     if (cooldownInterval) clearInterval(cooldownInterval);
   });
 
-  const handleSubmit = async (e: Event) => {
+  // STEP 1: Submit Registration -> Send Verification Code (OTP)
+  const handleRegisterSubmit = async (e: Event) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const { data, error: authError } = await authClient.signUp.email({
-      name: name(),
-      email: email(),
-      password: password(),
-      callbackURL: postSignupUrl(),
-    });
-
-    setLoading(false);
-
-    if (authError) {
-      if (authError.code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL') {
-        setAlreadyExists(true);
+    try {
+      const result = await requestRegistrationOtp(name(), email(), password());
+      if (!result.success) {
+        setError(result.error || 'Failed to send verification code');
+        setLoading(false);
+        return;
       }
-      setError(authError.message ?? 'Registration failed');
+
+      toast.success(`Verification code sent to ${email()}!`);
+      setStep('otp');
+      startCooldown();
+    } catch (err: any) {
+      console.error('Registration OTP error:', err);
+      setError(err.message || 'An error occurred during registration.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // STEP 2: Verify OTP
+  const handleVerifyOtp = async (e: Event) => {
+    e.preventDefault();
+    setError('');
+
+    const code = otpCode().trim();
+    if (!code || code.length < 6) {
+      setError('Please enter the 6-digit verification code.');
       return;
     }
-    setAlreadyExists(false);
-    setLastAuthMethod('email');
 
-    // Self-hosted: remember the discovery step is pending so the guards keep
-    // routing this user back to it until it is completed or skipped.
-    if (postSignupUrl().startsWith('/discovery')) {
-      markDiscoveryPending(data?.user?.id ?? '', '/welcome');
+    setLoading(true);
+    try {
+      const result = await verifyRegistrationOtp(email(), code);
+      if (!result.success) {
+        setError(result.error || 'Invalid verification code');
+        setLoading(false);
+        return;
+      }
+
+      toast.success('Email verified successfully!');
+      setStep('pending_approval');
+    } catch (err: any) {
+      console.error('OTP Verification Error:', err);
+      setError(err.message || 'Verification failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    if (data?.token) {
-      window.location.href = postSignupUrl();
-      return;
+  // Resend OTP
+  const handleResendOtp = async () => {
+    if (resendCooldown() > 0) return;
+    setError('');
+    setLoading(true);
+
+    try {
+      const result = await requestRegistrationOtp(name(), email(), password());
+      if (!result.success) {
+        setError(result.error || 'Failed to resend code');
+      } else {
+        toast.success(`New verification code sent to ${email()}`);
+        startCooldown();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend code');
+    } finally {
+      setLoading(false);
     }
-
-    setEmailSent(true);
-    startCooldown();
   };
 
   const handlePlanSelect = async (plan: PlanId) => {
@@ -159,230 +203,354 @@ const Register: Component = () => {
     }
   };
 
-  const handleResend = async () => {
-    if (resendCooldown() > 0) return;
-
-    const { error: resendError } = await authClient.sendVerificationEmail({
-      email: email(),
-      callbackURL: postSignupUrl(),
-    });
-
-    if (resendError) {
-      setError(resendError.message ?? 'Failed to resend verification email');
-      return;
-    }
-
-    startCooldown();
-  };
-
   return (
     <>
-      <Title>Sign Up - Manifest</Title>
+      <Title>Sign Up - Writerify Gateway</Title>
       <Meta
         name="description"
-        content="Create a Manifest account to start monitoring your AI harnesses."
+        content="Create a Writerify Gateway account to start using unified AI routing and harnesses."
       />
-      <Show
-        when={!emailSent()}
-        fallback={
-          <>
-            <div class="auth-header">
-              <h1 class="auth-header__title">Check your email</h1>
-              <p class="auth-header__subtitle">
-                We sent a verification link to <strong>{email()}</strong>
-              </p>
+
+      <Show when={showPlan()}>
+        <div class="auth-header">
+          <h1 class="auth-header__title">
+            {searchParams.context === 'login' ? 'Choose your plan' : 'Create an account'}
+          </h1>
+          <p class="auth-header__subtitle">
+            {searchParams.context === 'login'
+              ? 'Writerify Gateway offers Free and Pro plans. Select the one that fits your needs.'
+              : "Monitor your AI harnesses' costs and usage"}
+          </p>
+        </div>
+        <Show when={searchParams.context !== 'login'}>
+          <div class="plan-picker__section-header">
+            <h2 class="plan-picker__section-title">Choose your plan</h2>
+            <p class="plan-picker__section-subtitle">You can change your plan anytime</p>
+          </div>
+        </Show>
+        <PlanPicker proPrice={proPrice()} onSelect={handlePlanSelect} busy={planBusy()} />
+      </Show>
+
+      <Show when={!showPlan()}>
+        {/* ======================================================== */}
+        {/* STEP 3: PENDING ADMIN APPROVAL (Directly as Boss asked)   */}
+        {/* ======================================================== */}
+        <Show when={step() === 'pending_approval'}>
+          <div class="auth-header" style={{ "text-align": 'center' }}>
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                margin: '0 auto 16px auto',
+                background: 'rgba(34, 197, 94, 0.1)',
+                border: '2px solid rgba(34, 197, 94, 0.4)',
+                'border-radius': '50%',
+                display: 'flex',
+                'align-items': 'center',
+                'justify-content': 'center',
+                color: '#22c55e',
+              }}
+            >
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <path d="m9 12 2 2 4-4"/>
+              </svg>
             </div>
-
-            <div class="auth-form">
-              {error() && (
-                <div class="auth-form__error" role="alert">
-                  {error()}
-                </div>
-              )}
-              <div class="auth-form__success">
-                Click the link in your email to verify your account and get started.
-              </div>
-              <button
-                class="auth-form__link-btn"
-                onClick={handleResend}
-                disabled={resendCooldown() > 0}
-              >
-                {resendCooldown() > 0
-                  ? `Resend in ${resendCooldown()}s`
-                  : 'Resend verification email'}
-              </button>
-            </div>
-
-            <div class="auth-footer">
-              <A href={appendSearch('/login', location.search)} class="auth-footer__link">
-                Back to sign in
-              </A>
-            </div>
-          </>
-        }
-      >
-        <Show
-          when={showPlan()}
-          fallback={
-            <>
-              <div class="auth-header">
-                <h1 class="auth-header__title">Create an account</h1>
-                <p class="auth-header__subtitle">Monitor your AI harnesses' costs and usage</p>
-              </div>
-
-              <SocialButtons
-                enabledProviders={socialProviders()}
-                lastUsed={lastAuthMethod()}
-                callbackURL={socialSignupUrl()}
-              />
-
-              <Show when={socialProviders().length > 0}>
-                <div class="auth-divider">
-                  <span class="auth-divider__text">or</span>
-                </div>
-              </Show>
-
-              <form class="auth-form" onSubmit={handleSubmit}>
-                <Show when={alreadyExists()}>
-                  <div id={errorId} class="auth-form__error" role="alert">
-                    An account with this email already exists.{' '}
-                    <A href={appendSearch('/login', location.search)} class="auth-form__error-link">
-                      Sign in
-                    </A>{' '}
-                    or{' '}
-                    <A href="/reset-password" class="auth-form__error-link">
-                      reset your password
-                    </A>
-                    .
-                  </div>
-                </Show>
-                <Show when={error() && !alreadyExists()}>
-                  <div id={errorId} class="auth-form__error" role="alert">
-                    {error()}
-                  </div>
-                </Show>
-                <label class="auth-form__label" for={nameId}>
-                  Name
-                  <input
-                    ref={(el) => requestAnimationFrame(() => el.focus())}
-                    id={nameId}
-                    class="auth-form__input"
-                    type="text"
-                    autocomplete="name"
-                    placeholder="Your name"
-                    value={name()}
-                    onInput={(e) => setName(e.currentTarget.value)}
-                    required
-                    aria-describedby={error() ? errorId : undefined}
-                  />
-                </label>
-                <label class="auth-form__label" for={emailId}>
-                  Email
-                  <input
-                    id={emailId}
-                    class="auth-form__input"
-                    type="email"
-                    autocomplete="email"
-                    placeholder="you@example.com"
-                    value={email()}
-                    onInput={(e) => setEmail(e.currentTarget.value)}
-                    required
-                    aria-describedby={error() ? errorId : undefined}
-                  />
-                </label>
-                <label class="auth-form__label" for={passwordId}>
-                  Password
-                  <div class="auth-form__password-wrapper">
-                    <input
-                      id={passwordId}
-                      class="auth-form__input"
-                      type={showPassword() ? 'text' : 'password'}
-                      autocomplete="new-password"
-                      placeholder="Create a password"
-                      value={password()}
-                      onInput={(e) => setPassword(e.currentTarget.value)}
-                      required
-                      minLength={8}
-                      aria-describedby={error() ? errorId : undefined}
-                    />
-                    <button
-                      type="button"
-                      class="auth-form__eye-btn"
-                      onClick={() => setShowPassword(!showPassword())}
-                      aria-label={showPassword() ? 'Hide password' : 'Show password'}
-                      tabindex="-1"
-                    >
-                      <Show
-                        when={showPassword()}
-                        fallback={
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-                            <circle cx="12" cy="12" r="3"/>
-                          </svg>
-                        }
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
-                          <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
-                          <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
-                          <line x1="2" x2="22" y1="2" y2="22"/>
-                        </svg>
-                      </Show>
-                    </button>
-                  </div>
-                </label>
-                <button class="auth-form__submit" type="submit" disabled={loading()}>
-                  {loading() ? <span class="spinner" /> : 'Create account'}
-                </button>
-              </form>
-              <p class="auth-terms">
-                By signing up, you agree to our{' '}
-                <a
-                  href="https://manifest.build/terms"
-                  class="auth-terms__link"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Terms
-                </a>{' '}
-                and{' '}
-                <a
-                  href="https://manifest.build/privacy"
-                  class="auth-terms__link"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Privacy Policy
-                </a>
-              </p>
-              <div class="auth-footer">
-                <span>Already have an account? </span>
-                <A href={appendSearch('/login', location.search)} class="auth-footer__link">
-                  Sign in
-                </A>
-              </div>
-            </>
-          }
-        >
-          <div class="auth-header">
-            <h1 class="auth-header__title">
-              {searchParams.context === 'login' ? 'Choose your plan' : 'Create an account'}
+            <h1 class="auth-header__title" style={{ "font-size": '22px', "margin-bottom": '6px' }}>
+              Email Verified Successfully!
             </h1>
-            <p class="auth-header__subtitle">
-              {searchParams.context === 'login'
-                ? 'Manifest now offers Free and Pro plans. Select the one that fits your needs.'
-                : "Monitor your AI harnesses' costs and usage"}
+            <div
+              style={{
+                display: 'inline-block',
+                background: 'rgba(234, 179, 8, 0.15)',
+                color: '#eab308',
+                border: '1px solid rgba(234, 179, 8, 0.3)',
+                padding: '6px 14px',
+                'border-radius': '9999px',
+                'font-size': '13px',
+                'font-weight': '700',
+                'margin-top': '6px',
+                'margin-bottom': '12px',
+                'letter-spacing': '0.5px'
+              }}
+            >
+              Contact with Admin for Approval
+            </div>
+            <p class="auth-header__subtitle" style={{ "font-size": '14px', "color": '#94a3b8', "line-height": '1.5' }}>
+              আপনার ইমেল যাচাই সম্পন্ন হয়েছে। একাউন্ট সক্রিয় করতে অ্যাডমিনের অনুমোদন প্রয়োজন।
             </p>
           </div>
 
-          <Show when={searchParams.context !== 'login'}>
-            <div class="plan-picker__section-header">
-              <h2 class="plan-picker__section-title">Choose your plan</h2>
-              <p class="plan-picker__section-subtitle">You can change your plan anytime</p>
+          <div
+            class="auth-form"
+            style={{
+              background: '#0f172a',
+              border: '1px solid #1e293b',
+              'border-radius': '12px',
+              padding: '24px',
+              'margin-bottom': '20px',
+            }}
+          >
+            <div style={{ "margin-bottom": '16px', "font-size": '13px', "color": '#94a3b8' }}>
+              <div style={{ display: 'flex', "justify-content": 'space-between', "margin-bottom": '8px' }}>
+                <span style={{ color: '#64748b' }}>Account Name:</span>
+                <strong style={{ color: '#f8fafc' }}>{name()}</strong>
+              </div>
+              <div style={{ display: 'flex', "justify-content": 'space-between', "margin-bottom": '8px' }}>
+                <span style={{ color: '#64748b' }}>Registered Email:</span>
+                <strong style={{ color: '#38bdf8' }}>{email()}</strong>
+              </div>
+              <div style={{ display: 'flex', "justify-content": 'space-between', "margin-bottom": '8px' }}>
+                <span style={{ color: '#64748b' }}>Approval Status:</span>
+                <span style={{ color: '#eab308', "font-weight": '700' }}>⏳ Pending Admin Review</span>
+              </div>
+              <div style={{ display: 'flex', "justify-content": 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Approving Admin:</span>
+                <strong style={{ color: '#f8fafc' }}>Boss TN TAYYAB</strong>
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: 'rgba(56, 189, 248, 0.08)',
+                border: '1px solid rgba(56, 189, 248, 0.2)',
+                'border-radius': '8px',
+                padding: '12px',
+                'font-size': '12px',
+                color: '#bae6fd',
+                'line-height': '1.5',
+                'margin-bottom': '20px',
+              }}
+            >
+              📢 অ্যাডমিন অনুমোদন দেওয়া মাত্র আপনার ইমেলে কনফার্মেশন নোটিফিকেশন পৌঁছে যাবে এবং আপনি <strong>gateway.writerify.org</strong> এ লগইন করতে পারবেন।
+            </div>
+
+            <a
+              href={`mailto:itstasdidnur@gmail.com?subject=Approval%20Request%20for%20Writerify%20Gateway%20-${encodeURIComponent(email())}&body=Hello%20Boss%20TN%20TAYYAB,%0D%0A%0D%0AMy%20name%20is%20${encodeURIComponent(name())}%20and%20I%20have%20verified%20my%20email%20(${encodeURIComponent(email())}).%0D%0APlease%20approve%20my%20account%20on%20Writerify%20Gateway.%0D%0A%0D%0AThank%20you!`}
+              class="auth-form__submit"
+              style={{
+                display: 'block',
+                'text-align': 'center',
+                'text-decoration': 'none',
+                background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                color: '#fff',
+                'font-weight': '700',
+                padding: '12px',
+                'border-radius': '8px',
+                'margin-bottom': '12px',
+              }}
+            >
+              Contact Admin for Approval (Email)
+            </a>
+
+            <A
+              href="/login"
+              class="auth-form__submit"
+              style={{
+                display: 'block',
+                'text-align': 'center',
+                'text-decoration': 'none',
+                background: 'transparent',
+                border: '1px solid #334155',
+                color: '#cbd5e1',
+                padding: '10px',
+                'border-radius': '8px',
+              }}
+            >
+              Go to Sign In
+            </A>
+          </div>
+        </Show>
+
+        {/* ======================================================== */}
+        {/* STEP 2: ENTER VERIFICATION CODE (OTP)                    */}
+        {/* ======================================================== */}
+        <Show when={step() === 'otp'}>
+          <div class="auth-header">
+            <h1 class="auth-header__title">Enter Verification Code</h1>
+            <p class="auth-header__subtitle">
+              We sent a 6-digit code to <strong style={{ color: '#38bdf8' }}>{email()}</strong>
+            </p>
+          </div>
+
+          <form class="auth-form" onSubmit={handleVerifyOtp}>
+            <Show when={error()}>
+              <div id={errorId} class="auth-form__error" role="alert">
+                {error()}
+              </div>
+            </Show>
+
+            <label class="auth-form__label" for={otpId}>
+              6-Digit Verification Code
+              <input
+                ref={(el) => requestAnimationFrame(() => el.focus())}
+                id={otpId}
+                class="auth-form__input"
+                type="text"
+                inputmode="numeric"
+                maxlength="6"
+                placeholder="• • • • • •"
+                value={otpCode()}
+                onInput={(e) => setOtpCode(e.currentTarget.value.replace(/\D/g, ''))}
+                required
+                style={{
+                  'font-family': 'monospace, monospace',
+                  'font-size': '24px',
+                  'letter-spacing': '10px',
+                  'text-align': 'center',
+                  padding: '12px',
+                }}
+              />
+            </label>
+
+            <button class="auth-form__submit" type="submit" disabled={loading()}>
+              {loading() ? <span class="spinner" /> : 'Verify Code & Continue'}
+            </button>
+
+            <div style={{ display: 'flex', "justify-content": 'space-between', "align-items": 'center', "margin-top": '16px' }}>
+              <button
+                type="button"
+                class="auth-form__link-btn"
+                onClick={handleResendOtp}
+                disabled={resendCooldown() > 0 || loading()}
+              >
+                {resendCooldown() > 0
+                  ? `Resend in ${resendCooldown()}s`
+                  : 'Resend code'}
+              </button>
+
+              <button
+                type="button"
+                class="auth-form__link-btn"
+                onClick={() => {
+                  setStep('form');
+                  setError('');
+                }}
+              >
+                Change Email
+              </button>
+            </div>
+          </form>
+
+          <div class="auth-footer">
+            <A href={appendSearch('/login', location.search)} class="auth-footer__link">
+              Back to sign in
+            </A>
+          </div>
+        </Show>
+
+        {/* ======================================================== */}
+        {/* STEP 1: INITIAL REGISTRATION FORM                        */}
+        {/* ======================================================== */}
+        <Show when={step() === 'form'}>
+          <div class="auth-header">
+            <h1 class="auth-header__title">Create an account</h1>
+            <p class="auth-header__subtitle">Join Writerify Gateway multi-model AI platform</p>
+          </div>
+
+          <SocialButtons
+            enabledProviders={socialProviders()}
+            lastUsed={lastAuthMethod()}
+            callbackURL={socialSignupUrl()}
+          />
+
+          <Show when={socialProviders().length > 0}>
+            <div class="auth-divider">
+              <span class="auth-divider__text">or</span>
             </div>
           </Show>
 
-          <PlanPicker proPrice={proPrice()} onSelect={handlePlanSelect} busy={planBusy()} />
+          <form class="auth-form" onSubmit={handleRegisterSubmit}>
+            <Show when={error()}>
+              <div id={errorId} class="auth-form__error" role="alert">
+                {error()}
+              </div>
+            </Show>
+
+            <label class="auth-form__label" for={nameId}>
+              Full Name
+              <input
+                ref={(el) => requestAnimationFrame(() => el.focus())}
+                id={nameId}
+                class="auth-form__input"
+                type="text"
+                autocomplete="name"
+                placeholder="e.g. Shika Begum"
+                value={name()}
+                onInput={(e) => setName(e.currentTarget.value)}
+                required
+              />
+            </label>
+
+            <label class="auth-form__label" for={emailId}>
+              Email Address
+              <input
+                id={emailId}
+                class="auth-form__input"
+                type="email"
+                autocomplete="email"
+                placeholder="you@gmail.com"
+                value={email()}
+                onInput={(e) => setEmail(e.currentTarget.value)}
+                required
+              />
+            </label>
+
+            <label class="auth-form__label" for={passwordId}>
+              Password
+              <div class="auth-form__password-wrapper">
+                <input
+                  id={passwordId}
+                  class="auth-form__input"
+                  type={showPassword() ? 'text' : 'password'}
+                  autocomplete="new-password"
+                  placeholder="Create a strong password (min 8 chars)"
+                  value={password()}
+                  onInput={(e) => setPassword(e.currentTarget.value)}
+                  required
+                  minLength={8}
+                />
+                <button
+                  type="button"
+                  class="auth-form__eye-btn"
+                  onClick={() => setShowPassword(!showPassword())}
+                  aria-label={showPassword() ? 'Hide password' : 'Show password'}
+                  tabindex="-1"
+                >
+                  <Show
+                    when={showPassword()}
+                    fallback={
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    }
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                      <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                      <line x1="2" x2="22" y1="2" y2="22"/>
+                    </svg>
+                  </Show>
+                </button>
+              </div>
+            </label>
+
+            <button class="auth-form__submit" type="submit" disabled={loading()}>
+              {loading() ? <span class="spinner" /> : 'Get Verification Code'}
+            </button>
+          </form>
+
+          <p class="auth-terms">
+            By signing up, you agree to Writerify Gateway's terms and community policies.
+          </p>
+          <div class="auth-footer">
+            <span>Already have an approved account? </span>
+            <A href={appendSearch('/login', location.search)} class="auth-footer__link">
+              Sign in
+            </A>
+          </div>
         </Show>
       </Show>
     </>

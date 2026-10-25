@@ -78,8 +78,17 @@ const Login: Component = () => {
 
     if (authError) {
       const msg = authError.message ?? '';
+      const lowMsg = msg.toLowerCase();
       if (
-        msg.toLowerCase().includes('email is not verified') ||
+        lowMsg.includes('not approved') ||
+        lowMsg.includes('access denied') ||
+        lowMsg.includes('pending')
+      ) {
+        setError('Your account is pending Admin approval. Please contact Boss TN TAYYAB (itstasdidnur@gmail.com) for activation.');
+        return;
+      }
+      if (
+        lowMsg.includes('email is not verified') ||
         authError.code === 'EMAIL_NOT_VERIFIED'
       ) {
         setNeedsVerification(true);

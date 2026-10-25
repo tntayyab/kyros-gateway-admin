@@ -13,6 +13,7 @@ export interface GatewayMember {
   anydesk_id?: string;
   is_earning: boolean;
   is_supported: boolean;
+  is_email_verified?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -49,6 +50,7 @@ export async function getAllMembers(): Promise<GatewayMember[]> {
       anydesk_id,
       COALESCE(is_earning, false) as is_earning,
       COALESCE(is_supported, false) as is_supported,
+      COALESCE(is_email_verified, false) as is_email_verified,
       created_at, updated_at
     FROM public.kyros_access_control
     ORDER BY 

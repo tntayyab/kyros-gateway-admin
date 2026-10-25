@@ -39,6 +39,70 @@ export const AdminUsers: Component = () => {
   const [newRole, setNewRole] = createSignal('member');
   const [newPlan, setNewPlan] = createSignal('free_trial');
 
+  // Email & Resend settings state
+  const [emailModalOpen, setEmailModalOpen] = createSignal(false);
+  const [resendApiKey, setResendApiKey] = createSignal('');
+  const [emailFrom, setEmailFrom] = createSignal('Writerify Gateway <onboarding@resend.dev>');
+  const [adminNotifyEmail, setAdminNotifyEmail] = createSignal('itstasdidnur@gmail.com');
+  const [showApiKey, setShowApiKey] = createSignal(false);
+  const [verifications, setVerifications] = createSignal<VerificationRecord[]>([]);
+  const [emailSettingsBusy, setEmailSettingsBusy] = createSignal(false);
+  const [testEmailBusy, setTestEmailBusy] = createSignal(false);
+
+  async function loadEmailSettings() {
+    try {
+      const s = await getGatewaySettings();
+      if (s['resend_api_key'] !== undefined) setResendApiKey(s['resend_api_key']);
+      if (s['email_from']) setEmailFrom(s['email_from']);
+      if (s['admin_email']) setAdminNotifyEmail(s['admin_email']);
+      const recents = await getRecentVerifications();
+      setVerifications(recents);
+    } catch (e) {
+      console.error('Failed to load email settings:', e);
+    }
+  }
+
+  async function handleSaveEmailSettings(e: Event) {
+    e.preventDefault();
+    try {
+      setEmailSettingsBusy(true);
+      await updateGatewaySetting('resend_api_key', resendApiKey().trim());
+      await updateGatewaySetting('email_from', emailFrom().trim());
+      await updateGatewaySetting('admin_email', adminNotifyEmail().trim());
+      toast.success('Email settings saved to Neon database!');
+    } catch (err: any) {
+      toast.error('Failed to save settings: ' + err.message);
+    } finally {
+      setEmailSettingsBusy(false);
+    }
+  }
+
+  async function handleTestEmail() {
+    if (!resendApiKey().trim()) {
+      toast.error('Please enter a Resend API Key first!');
+      return;
+    }
+    try {
+      setTestEmailBusy(true);
+      await updateGatewaySetting('resend_api_key', resendApiKey().trim());
+      await updateGatewaySetting('email_from', emailFrom().trim());
+      const res = await sendEmailViaResend({
+        to: adminNotifyEmail().trim() || 'itstasdidnur@gmail.com',
+        subject: 'Writerify Gateway - Test Email',
+        html: '<h2 style="color: #0284c7;">Writerify Gateway Email Test</h2><p>Your Resend integration is active and working perfectly!</p>',
+      });
+      if (res.success) {
+        toast.success('Test email delivered! Check inbox of ' + adminNotifyEmail());
+      } else {
+        toast.error('Test email failed: ' + res.error);
+      }
+    } catch (err: any) {
+      toast.error('Test error: ' + err.message);
+    } finally {
+      setTestEmailBusy(false);
+    }
+  }
+
   // Inline edits cache
   const [editedPlans, setEditedPlans] = createSignal<Record<string, string>>({});
   const [editedAgreed, setEditedAgreed] = createSignal<Record<string, number>>({});
@@ -99,8 +163,16 @@ export const AdminUsers: Component = () => {
   async function handleApprove(email: string) {
     try {
       setActionBusy(true);
-      await updateMemberStatus(email, 'approved');
-      toast.success(`Approved ${email} for Gateway access!`);
+      const res = await approveUserAccount(email, 'Boss TN TAYYAB');
+      if (res.success) {
+        if (res.emailSent) {
+          toast.success(`Approved ${email} and dispatched confirmation email!`);
+        } else {
+          toast.success(`Approved ${email}! (Setup Resend API Key in Settings to send automated emails)`);
+        }
+      } else {
+        toast.error(res.error || 'Failed to approve');
+      }
       await loadMembers();
     } catch (err: any) {
       toast.error(err.message || 'Failed to approve');
@@ -246,6 +318,26 @@ export const AdminUsers: Component = () => {
           </div>
 
           <div class="admin-header__actions">
+            <button
+              type="button"
+              onClick={() => {
+                loadEmailSettings();
+                setEmailModalOpen(true);
+              }}
+              class="admin-btn-secondary"
+              style={{
+                display: 'inline-flex',
+                'align-items': 'center',
+                gap: '6px',
+                background: 'rgba(2, 132, 199, 0.1)',
+                'border-color': 'rgba(2, 132, 199, 0.3)',
+                color: '#0284c7',
+                'font-weight': '600',
+              }}
+            >
+              ✉️ Email & Resend Setup
+            </button>
+
             <button type="button" onClick={() => setModalOpen(true)} class="admin-btn-primary">
               + Whitelist Team Member
             </button>
@@ -639,6 +731,22 @@ export const AdminUsers: Component = () => {
                                 {m.status || 'pending'}
                               </span>
 
+                              <Show when={m.is_email_verified}>
+                                <span
+                                  style={{
+                                    'font-size': '10px',
+                                    background: 'rgba(34, 197, 94, 0.15)',
+                                    color: '#16a34a',
+                                    padding: '2px 6px',
+                                    'border-radius': '4px',
+                                    'font-weight': '700',
+                                  }}
+                                  title="User verified their email address via OTP code"
+                                >
+                                  Verified ✅
+                                </span>
+                              </Show>
+
                               <Show when={m.status !== 'approved'}>
                                 <button
                                   type="button"
@@ -909,6 +1017,246 @@ export const AdminUsers: Component = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </Show>
+
+        {/* Email & Resend Gateway Settings Modal */}
+        <Show when={emailModalOpen()}>
+          <div
+            style={{
+              position: 'fixed',
+              top: '0',
+              left: '0',
+              right: '0',
+              bottom: '0',
+              background: 'rgba(0,0,0,0.7)',
+              display: 'flex',
+              'align-items': 'center',
+              'justify-content': 'center',
+              'z-index': '9999',
+              padding: '20px',
+              'backdrop-filter': 'blur(4px)',
+            }}
+          >
+            <div
+              style={{
+                background: 'hsl(var(--card))',
+                border: '1px solid hsl(var(--border))',
+                'border-radius': '16px',
+                width: '100%',
+                'max-width': '620px',
+                'max-height': '90vh',
+                overflow: 'auto',
+                padding: '24px',
+                'box-shadow': '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  'align-items': 'center',
+                  'justify-content': 'space-between',
+                  'margin-bottom': '16px',
+                }}
+              >
+                <div>
+                  <h3
+                    style={{
+                      margin: '0',
+                      'font-size': '18px',
+                      'font-weight': '700',
+                      color: 'hsl(var(--foreground))',
+                      display: 'flex',
+                      'align-items': 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    ✉️ Email & Resend Gateway Hub
+                  </h3>
+                  <p
+                    style={{
+                      margin: '4px 0 0 0',
+                      'font-size': '13px',
+                      color: 'hsl(var(--muted-foreground))',
+                    }}
+                  >
+                    Powers OTP email verifications and automated Admin approval notices.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEmailModalOpen(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'hsl(var(--muted-foreground))',
+                    cursor: 'pointer',
+                    'font-size': '20px',
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEmailSettings}>
+                <div style={{ 'margin-bottom': '16px' }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      'font-size': '12px',
+                      'font-weight': '600',
+                      'margin-bottom': '6px',
+                      color: 'hsl(var(--foreground))',
+                    }}
+                  >
+                    Resend API Key (re_...)
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type={showApiKey() ? 'text' : 'password'}
+                      placeholder="re_1234567890abcdef..."
+                      value={resendApiKey()}
+                      onInput={(e) => setResendApiKey(e.currentTarget.value)}
+                      class="admin-input"
+                      style={{ flex: '1', 'font-family': 'monospace' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey())}
+                      class="admin-btn-secondary"
+                      style={{ padding: '0 12px' }}
+                    >
+                      {showApiKey() ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  <div style={{ 'font-size': '11px', color: '#64748b', 'margin-top': '4px' }}>
+                    Get your free key from <a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: '#0284c7' }}>resend.com</a> (3,000 free emails/month). Stored securely in Neon DB.
+                  </div>
+                </div>
+
+                <div style={{ 'margin-bottom': '16px' }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      'font-size': '12px',
+                      'font-weight': '600',
+                      'margin-bottom': '6px',
+                      color: 'hsl(var(--foreground))',
+                    }}
+                  >
+                    Outgoing Sender Address ("From")
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Writerify Gateway <onboarding@resend.dev>"
+                    value={emailFrom()}
+                    onInput={(e) => setEmailFrom(e.currentTarget.value)}
+                    class="admin-input"
+                    style={{ width: '100%' }}
+                  />
+                  <div style={{ 'font-size': '11px', color: '#64748b', 'margin-top': '4px' }}>
+                    Use <code>Writerify Gateway &lt;onboarding@resend.dev&gt;</code> for test/free sending, or your custom domain when verified in Resend.
+                  </div>
+                </div>
+
+                <div style={{ 'margin-bottom': '20px' }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      'font-size': '12px',
+                      'font-weight': '600',
+                      'margin-bottom': '6px',
+                      color: 'hsl(var(--foreground))',
+                    }}
+                  >
+                    Admin Contact Email
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="itstasdidnur@gmail.com"
+                    value={adminNotifyEmail()}
+                    onInput={(e) => setAdminNotifyEmail(e.currentTarget.value)}
+                    class="admin-input"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', 'margin-bottom': '24px', 'border-top': '1px solid hsl(var(--border))', 'padding-top': '16px' }}>
+                  <button
+                    type="button"
+                    onClick={handleTestEmail}
+                    disabled={testEmailBusy()}
+                    class="admin-btn-secondary"
+                    style={{ color: '#0284c7', 'border-color': 'rgba(2, 132, 199, 0.4)' }}
+                  >
+                    {testEmailBusy() ? 'Sending Test Email...' : '🧪 Send Test Email to Boss'}
+                  </button>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setEmailModalOpen(false)}
+                      class="admin-btn-secondary"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={emailSettingsBusy()}
+                      class="admin-btn-primary"
+                    >
+                      {emailSettingsBusy() ? 'Saving...' : 'Save Settings'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {/* Recent Verification OTP Codes Section */}
+              <div style={{ 'border-top': '1px solid hsl(var(--border))', 'padding-top': '16px' }}>
+                <h4 style={{ margin: '0 0 10px 0', 'font-size': '13px', 'font-weight': '700', color: 'hsl(var(--foreground))', display: 'flex', 'align-items': 'center', 'justify-content': 'space-between' }}>
+                  <span>📋 Recent Verification Codes (OTP Live Log)</span>
+                  <button
+                    type="button"
+                    onClick={loadEmailSettings}
+                    style={{ background: 'none', border: 'none', color: '#0284c7', 'font-size': '11px', cursor: 'pointer', 'font-weight': '600' }}
+                  >
+                    🔄 Refresh Log
+                  </button>
+                </h4>
+                <div style={{ 'max-height': '180px', overflow: 'auto', border: '1px solid hsl(var(--border))', 'border-radius': '8px' }}>
+                  <table style={{ width: '100%', 'font-size': '11px', 'border-collapse': 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: 'hsl(var(--muted))', 'text-align': 'left' }}>
+                        <th style={{ padding: '6px 10px' }}>User</th>
+                        <th style={{ padding: '6px 10px' }}>Email</th>
+                        <th style={{ padding: '6px 10px' }}>OTP Code</th>
+                        <th style={{ padding: '6px 10px' }}>Status</th>
+                        <th style={{ padding: '6px 10px' }}>Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <For each={verifications()} fallback={<tr><td colspan="5" style={{ padding: '12px', 'text-align': 'center', color: '#64748b' }}>No verification records found.</td></tr>}>
+                        {(v) => (
+                          <tr style={{ 'border-top': '1px solid hsl(var(--border))' }}>
+                            <td style={{ padding: '6px 10px', 'font-weight': '600' }}>{v.name || 'Member'}</td>
+                            <td style={{ padding: '6px 10px', color: '#0284c7' }}>{v.email}</td>
+                            <td style={{ padding: '6px 10px', 'font-family': 'monospace', 'font-size': '12px', 'font-weight': '700', color: '#38bdf8' }}>{v.code}</td>
+                            <td style={{ padding: '6px 10px' }}>
+                              <span style={{ color: v.is_verified ? '#16a34a' : '#eab308', 'font-weight': '600' }}>
+                                {v.is_verified ? 'Verified ✅' : 'Pending ⏳'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '6px 10px', color: '#64748b' }}>
+                              {v.created_at ? new Date(v.created_at).toLocaleTimeString() : ''}
+                            </td>
+                          </tr>
+                        )}
+                      </For>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         </Show>
