@@ -50,6 +50,7 @@ export const AdminUsers: Component = () => {
   const [verifications, setVerifications] = createSignal<VerificationRecord[]>([]);
   const [emailSettingsBusy, setEmailSettingsBusy] = createSignal(false);
   const [testEmailBusy, setTestEmailBusy] = createSignal(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = createSignal('');
 
   async function loadEmailSettings() {
     try {
@@ -71,7 +72,9 @@ export const AdminUsers: Component = () => {
       await updateGatewaySetting('resend_api_key', resendApiKey().trim());
       await updateGatewaySetting('email_from', emailFrom().trim());
       await updateGatewaySetting('admin_email', adminNotifyEmail().trim());
+      setSaveSuccessMsg('Settings saved successfully to Neon database!');
       toast.success('Email settings saved to Neon database!');
+      setTimeout(() => setSaveSuccessMsg(''), 5000);
     } catch (err: any) {
       toast.error('Failed to save settings: ' + err.message);
     } finally {
@@ -1156,6 +1159,26 @@ export const AdminUsers: Component = () => {
                 </button>
               </div>
 
+              <Show when={saveSuccessMsg()}>
+                <div
+                  style={{
+                    background: 'rgba(34, 197, 94, 0.15)',
+                    color: '#22c55e',
+                    border: '1px solid rgba(34, 197, 94, 0.4)',
+                    padding: '10px 14px',
+                    'border-radius': '8px',
+                    'font-size': '13px',
+                    'font-weight': '600',
+                    'margin-bottom': '16px',
+                    display: 'flex',
+                    'align-items': 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <span>✅ {saveSuccessMsg()}</span>
+                </div>
+              </Show>
+
               <form onSubmit={handleSaveEmailSettings}>
                 <div style={{ 'margin-bottom': '16px' }}>
                   <label
@@ -1215,6 +1238,22 @@ export const AdminUsers: Component = () => {
                   <div style={{ 'font-size': '11px', color: '#64748b', 'margin-top': '4px' }}>
                     Use <code>Writerify Gateway &lt;onboarding@resend.dev&gt;</code> for test/free sending, or your custom domain when verified in Resend.
                   </div>
+                  <Show when={emailFrom().toLowerCase().includes('@gmail.com') || emailFrom().toLowerCase().includes('@yahoo.com')}>
+                    <div
+                      style={{
+                        background: 'rgba(234, 179, 8, 0.15)',
+                        color: '#eab308',
+                        border: '1px solid rgba(234, 179, 8, 0.3)',
+                        padding: '8px 12px',
+                        'border-radius': '6px',
+                        'font-size': '12px',
+                        'margin-top': '6px',
+                        'line-height': '1.4',
+                      }}
+                    >
+                      ⚠️ <strong>Resend Restriction:</strong> Cannot send from personal @gmail.com addresses. Please use <code>Writerify Gateway &lt;onboarding@resend.dev&gt;</code> (or verify writerify.org in Resend Domains).
+                    </div>
+                  </Show>
                 </div>
 
                 <div style={{ 'margin-bottom': '20px' }}>
