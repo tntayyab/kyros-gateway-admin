@@ -285,7 +285,69 @@ export function buildApprovalEmailHtml(name: string, email: string): string {
 }
 
 // -------------------------------------------------------------
-// 5. Verification OTP Workflow (Registration Step 1 & 2)
+// 5. Direct Registration Workflow (No Verification OTP Needed)
+// -------------------------------------------------------------
+export async function submitDirectRegistration(
+  name: string,
+  email: string,
+  password: string
+): Promise<{ success: boolean; error?: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanName = name.trim();
+
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    return { success: false, error: 'Please enter a valid email address.' };
+  }
+  if (!password || password.length < 8) {
+    return { success: false, error: 'Password must be at least 8 characters long.' };
+  }
+
+  // 1. Check if email has been blocked/rejected by Admin
+  const accessRows = await execAdminSql<{ status: string }>(
+    `SELECT status FROM public.kyros_access_control WHERE LOWER(email) = LOWER('${cleanEmail.replace(/'/g, "''")}');`
+  );
+  if (accessRows.length > 0 && (accessRows[0].status === 'rejected' || accessRows[0].status === 'revoked')) {
+    return {
+      success: false,
+      error: 'Access Denied: This account has been blocked by Admin (Boss TN TAYYAB).',
+    };
+  }
+
+  // 2. Check if email already has an approved account
+  const existingUsers = await execAdminSql<{ id: string; email: string }>(
+    `SELECT id, email FROM public.user WHERE LOWER(email) = LOWER('${cleanEmail.replace(/'/g, "''")}');`
+  );
+  if (existingUsers.length > 0) {
+    return {
+      success: false,
+      error: 'An account with this email already exists. Please log in instead.',
+    };
+  }
+
+  // 3. Compute password hash with Scrypt NFKC
+  const passwordHash = await hashPasswordClient(password);
+  const escapedEmail = cleanEmail.replace(/'/g, "''");
+  const escapedName = cleanName.replace(/'/g, "''");
+  const escapedHash = passwordHash.replace(/'/g, "''");
+
+  // 4. Save directly into kyros_access_control as 'pending'
+  await execAdminSql(`
+    INSERT INTO public.kyros_access_control (email, name, role, status, plan, notes, password_hash, is_email_verified, created_at, updated_at)
+    VALUES ('${escapedEmail}', '${escapedName}', 'member', 'pending', 'free_trial', 'Direct Registration - Pending Admin Approval', '${escapedHash}', true, NOW(), NOW())
+    ON CONFLICT (email) DO UPDATE 
+    SET name = EXCLUDED.name, 
+        password_hash = EXCLUDED.password_hash, 
+        status = 'pending', 
+        is_email_verified = true,
+        notes = 'Direct Registration - Pending Admin Approval', 
+        updated_at = NOW();
+  `);
+
+  return { success: true };
+}
+
+// -------------------------------------------------------------
+// 5b. Verification OTP Workflow (Optional/Legacy)
 // -------------------------------------------------------------
 export async function requestRegistrationOtp(
   name: string,

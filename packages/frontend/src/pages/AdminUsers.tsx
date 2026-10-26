@@ -173,7 +173,9 @@ export const AdminUsers: Component = () => {
         if (res.emailSent) {
           toast.success(`Approved ${email} and dispatched confirmation email!`);
         } else {
-          toast.success(`Approved ${email}! (Setup Resend API Key in Settings to send automated emails)`);
+          toast.success(
+            `Approved ${email}! (Setup Resend API Key in Settings to send automated emails)`,
+          );
         }
       } else {
         toast.error(res.error || 'Failed to approve');
@@ -208,7 +210,12 @@ export const AdminUsers: Component = () => {
       toast.error('Cannot block Master Admin Boss!');
       return;
     }
-    if (!confirm(`Are you sure you want to block ${email}? They will be immediately blocked from accessing Writerify Gateway.`)) return;
+    if (
+      !confirm(
+        `Are you sure you want to block ${email}? They will be immediately blocked from accessing Writerify Gateway.`,
+      )
+    )
+      return;
     try {
       setActionBusy(true);
       await blockMember(email, 'Boss TN TAYYAB');
@@ -764,7 +771,9 @@ export const AdminUsers: Component = () => {
                                       : 'badge-revoked'
                                 }
                               >
-                                {m.status === 'rejected' || m.status === 'revoked' ? 'blocked ⛔' : m.status || 'pending'}
+                                {m.status === 'rejected' || m.status === 'revoked'
+                                  ? 'blocked ⛔'
+                                  : m.status || 'pending'}
                               </span>
 
                               <Show when={m.is_email_verified}>
@@ -784,7 +793,13 @@ export const AdminUsers: Component = () => {
                               </Show>
 
                               {/* Approve Button */}
-                              <Show when={m.status !== 'approved' && m.status !== 'rejected' && m.status !== 'revoked'}>
+                              <Show
+                                when={
+                                  m.status !== 'approved' &&
+                                  m.status !== 'rejected' &&
+                                  m.status !== 'revoked'
+                                }
+                              >
                                 <button
                                   type="button"
                                   onClick={() => handleApprove(m.email)}
@@ -807,7 +822,9 @@ export const AdminUsers: Component = () => {
                               {/* Block Button */}
                               <Show
                                 when={
-                                  m.status !== 'rejected' && m.status !== 'revoked' && m.email !== 'itstasdidnur@gmail.com'
+                                  m.status !== 'rejected' &&
+                                  m.status !== 'revoked' &&
+                                  m.email !== 'itstasdidnur@gmail.com'
                                 }
                               >
                                 <button
@@ -1211,7 +1228,16 @@ export const AdminUsers: Component = () => {
                     </button>
                   </div>
                   <div style={{ 'font-size': '11px', color: '#64748b', 'margin-top': '4px' }}>
-                    Get your free key from <a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: '#0284c7' }}>resend.com</a> (3,000 free emails/month). Stored securely in Neon DB.
+                    Get your free key from{' '}
+                    <a
+                      href="https://resend.com"
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: '#0284c7' }}
+                    >
+                      resend.com
+                    </a>{' '}
+                    (3,000 free emails/month). Stored securely in Neon DB.
                   </div>
                 </div>
 
@@ -1236,9 +1262,15 @@ export const AdminUsers: Component = () => {
                     style={{ width: '100%' }}
                   />
                   <div style={{ 'font-size': '11px', color: '#64748b', 'margin-top': '4px' }}>
-                    Use <code>Writerify Gateway &lt;onboarding@resend.dev&gt;</code> for test/free sending, or your custom domain when verified in Resend.
+                    Use <code>Writerify Gateway &lt;onboarding@resend.dev&gt;</code> for test/free
+                    sending, or your custom domain when verified in Resend.
                   </div>
-                  <Show when={emailFrom().toLowerCase().includes('@gmail.com') || emailFrom().toLowerCase().includes('@yahoo.com')}>
+                  <Show
+                    when={
+                      emailFrom().toLowerCase().includes('@gmail.com') ||
+                      emailFrom().toLowerCase().includes('@yahoo.com')
+                    }
+                  >
                     <div
                       style={{
                         background: 'rgba(234, 179, 8, 0.15)',
@@ -1251,7 +1283,10 @@ export const AdminUsers: Component = () => {
                         'line-height': '1.4',
                       }}
                     >
-                      ⚠️ <strong>Resend Restriction:</strong> Cannot send from personal @gmail.com addresses. Please use <code>Writerify Gateway &lt;onboarding@resend.dev&gt;</code> (or verify writerify.org in Resend Domains).
+                      ⚠️ <strong>Resend Restriction:</strong> Cannot send from personal @gmail.com
+                      addresses. Please use{' '}
+                      <code>Writerify Gateway &lt;onboarding@resend.dev&gt;</code> (or verify
+                      writerify.org in Resend Domains).
                     </div>
                   </Show>
                 </div>
@@ -1278,7 +1313,16 @@ export const AdminUsers: Component = () => {
                   />
                 </div>
 
-                <div style={{ display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', 'margin-bottom': '24px', 'border-top': '1px solid hsl(var(--border))', 'padding-top': '16px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    'justify-content': 'space-between',
+                    'align-items': 'center',
+                    'margin-bottom': '24px',
+                    'border-top': '1px solid hsl(var(--border))',
+                    'padding-top': '16px',
+                  }}
+                >
                   <button
                     type="button"
                     onClick={handleTestEmail}
@@ -1297,11 +1341,7 @@ export const AdminUsers: Component = () => {
                     >
                       Close
                     </button>
-                    <button
-                      type="submit"
-                      disabled={emailSettingsBusy()}
-                      class="admin-btn-primary"
-                    >
+                    <button type="submit" disabled={emailSettingsBusy()} class="admin-btn-primary">
                       {emailSettingsBusy() ? 'Saving...' : 'Save Settings'}
                     </button>
                   </div>
@@ -1310,18 +1350,44 @@ export const AdminUsers: Component = () => {
 
               {/* Recent Verification OTP Codes Section */}
               <div style={{ 'border-top': '1px solid hsl(var(--border))', 'padding-top': '16px' }}>
-                <h4 style={{ margin: '0 0 10px 0', 'font-size': '13px', 'font-weight': '700', color: 'hsl(var(--foreground))', display: 'flex', 'align-items': 'center', 'justify-content': 'space-between' }}>
+                <h4
+                  style={{
+                    margin: '0 0 10px 0',
+                    'font-size': '13px',
+                    'font-weight': '700',
+                    color: 'hsl(var(--foreground))',
+                    display: 'flex',
+                    'align-items': 'center',
+                    'justify-content': 'space-between',
+                  }}
+                >
                   <span>📋 Recent Verification Codes (OTP Live Log)</span>
                   <button
                     type="button"
                     onClick={loadEmailSettings}
-                    style={{ background: 'none', border: 'none', color: '#0284c7', 'font-size': '11px', cursor: 'pointer', 'font-weight': '600' }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#0284c7',
+                      'font-size': '11px',
+                      cursor: 'pointer',
+                      'font-weight': '600',
+                    }}
                   >
                     🔄 Refresh Log
                   </button>
                 </h4>
-                <div style={{ 'max-height': '180px', overflow: 'auto', border: '1px solid hsl(var(--border))', 'border-radius': '8px' }}>
-                  <table style={{ width: '100%', 'font-size': '11px', 'border-collapse': 'collapse' }}>
+                <div
+                  style={{
+                    'max-height': '180px',
+                    overflow: 'auto',
+                    border: '1px solid hsl(var(--border))',
+                    'border-radius': '8px',
+                  }}
+                >
+                  <table
+                    style={{ width: '100%', 'font-size': '11px', 'border-collapse': 'collapse' }}
+                  >
                     <thead>
                       <tr style={{ background: 'hsl(var(--muted))', 'text-align': 'left' }}>
                         <th style={{ padding: '6px 10px' }}>User</th>
@@ -1332,14 +1398,43 @@ export const AdminUsers: Component = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      <For each={verifications()} fallback={<tr><td colspan="5" style={{ padding: '12px', 'text-align': 'center', color: '#64748b' }}>No verification records found.</td></tr>}>
+                      <For
+                        each={verifications()}
+                        fallback={
+                          <tr>
+                            <td
+                              colspan="5"
+                              style={{ padding: '12px', 'text-align': 'center', color: '#64748b' }}
+                            >
+                              No verification records found.
+                            </td>
+                          </tr>
+                        }
+                      >
                         {(v) => (
                           <tr style={{ 'border-top': '1px solid hsl(var(--border))' }}>
-                            <td style={{ padding: '6px 10px', 'font-weight': '600' }}>{v.name || 'Member'}</td>
+                            <td style={{ padding: '6px 10px', 'font-weight': '600' }}>
+                              {v.name || 'Member'}
+                            </td>
                             <td style={{ padding: '6px 10px', color: '#0284c7' }}>{v.email}</td>
-                            <td style={{ padding: '6px 10px', 'font-family': 'monospace', 'font-size': '12px', 'font-weight': '700', color: '#38bdf8' }}>{v.code}</td>
+                            <td
+                              style={{
+                                padding: '6px 10px',
+                                'font-family': 'monospace',
+                                'font-size': '12px',
+                                'font-weight': '700',
+                                color: '#38bdf8',
+                              }}
+                            >
+                              {v.code}
+                            </td>
                             <td style={{ padding: '6px 10px' }}>
-                              <span style={{ color: v.is_verified ? '#16a34a' : '#eab308', 'font-weight': '600' }}>
+                              <span
+                                style={{
+                                  color: v.is_verified ? '#16a34a' : '#eab308',
+                                  'font-weight': '600',
+                                }}
+                              >
                                 {v.is_verified ? 'Verified ✅' : 'Pending ⏳'}
                               </span>
                             </td>

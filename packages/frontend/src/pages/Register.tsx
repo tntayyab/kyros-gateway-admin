@@ -19,25 +19,18 @@ import { getBillingStatus } from '../services/api/billing.js';
 import { markPlanChosen } from '../services/plan-selection.js';
 import { formatBillingPrice } from '../services/billing-display.js';
 import { toast } from '../services/toast-store.js';
-import {
-  requestRegistrationOtp,
-  verifyRegistrationOtp,
-} from '../services/kyros-auth-flow.js';
+import { submitDirectRegistration } from '../services/kyros-auth-flow.js';
 
-const RESEND_COOLDOWN_SECONDS = 60;
-
-type RegistrationStep = 'form' | 'otp' | 'pending_approval';
+type RegistrationStep = 'form' | 'pending_approval';
 
 const Register: Component = () => {
   const [step, setStep] = createSignal<RegistrationStep>('form');
   const [name, setName] = createSignal('');
   const [email, setEmail] = createSignal('');
   const [password, setPassword] = createSignal('');
-  const [otpCode, setOtpCode] = createSignal('');
   const [showPassword, setShowPassword] = createSignal(false);
   const [error, setError] = createSignal('');
   const [loading, setLoading] = createSignal(false);
-  const [resendCooldown, setResendCooldown] = createSignal(0);
   const [socialProviders, setSocialProviders] = createSignal<string[]>([]);
   const [postSignupUrl, setPostSignupUrl] = createSignal('/welcome');
   const [lastAuthMethod] = createSignal(getLastAuthMethod());
@@ -54,7 +47,6 @@ const Register: Component = () => {
   const emailId = createUniqueId();
   const passwordId = createUniqueId();
   const errorId = createUniqueId();
-  const otpId = createUniqueId();
 
   const socialSignupUrl = () =>
     postSignupUrl().startsWith('/discovery') ? `${postSignupUrl()}&signup=1` : undefined;
@@ -80,98 +72,25 @@ const Register: Component = () => {
       .catch(() => {});
   });
 
-  let cooldownInterval: ReturnType<typeof setInterval> | undefined;
-
-  const startCooldown = () => {
-    setResendCooldown(RESEND_COOLDOWN_SECONDS);
-    if (cooldownInterval) clearInterval(cooldownInterval);
-    cooldownInterval = setInterval(() => {
-      setResendCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(cooldownInterval);
-          cooldownInterval = undefined;
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  onCleanup(() => {
-    if (cooldownInterval) clearInterval(cooldownInterval);
-  });
-
-  // STEP 1: Submit Registration -> Send Verification Code (OTP)
+  // Direct Registration -> Directly pending admin approval (No OTP verification needed)
   const handleRegisterSubmit = async (e: Event) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      const result = await requestRegistrationOtp(name(), email(), password());
+      const result = await submitDirectRegistration(name(), email(), password());
       if (!result.success) {
-        setError(result.error || 'Failed to send verification code');
+        setError(result.error || 'Failed to submit registration');
         setLoading(false);
         return;
       }
 
-      toast.success(`Verification code sent to ${email()}!`);
-      setStep('otp');
-      startCooldown();
-    } catch (err: any) {
-      console.error('Registration OTP error:', err);
-      setError(err.message || 'An error occurred during registration.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // STEP 2: Verify OTP
-  const handleVerifyOtp = async (e: Event) => {
-    e.preventDefault();
-    setError('');
-
-    const code = otpCode().trim();
-    if (!code || code.length < 6) {
-      setError('Please enter the 6-digit verification code.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await verifyRegistrationOtp(email(), code);
-      if (!result.success) {
-        setError(result.error || 'Invalid verification code');
-        setLoading(false);
-        return;
-      }
-
-      toast.success('Email verified successfully!');
+      toast.success('Registration submitted! Contact Admin for approval.');
       setStep('pending_approval');
     } catch (err: any) {
-      console.error('OTP Verification Error:', err);
-      setError(err.message || 'Verification failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Resend OTP
-  const handleResendOtp = async () => {
-    if (resendCooldown() > 0) return;
-    setError('');
-    setLoading(true);
-
-    try {
-      const result = await requestRegistrationOtp(name(), email(), password());
-      if (!result.success) {
-        setError(result.error || 'Failed to resend code');
-      } else {
-        toast.success(`New verification code sent to ${email()}`);
-        startCooldown();
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to resend code');
+      console.error('Registration error:', err);
+      setError(err.message || 'An error occurred during registration.');
     } finally {
       setLoading(false);
     }
@@ -257,7 +176,7 @@ const Register: Component = () => {
               </svg>
             </div>
             <h1 class="auth-header__title" style={{ "font-size": '22px', "margin-bottom": '6px' }}>
-              Email Verified Successfully!
+              Registration Submitted!
             </h1>
             <div
               style={{
@@ -277,7 +196,7 @@ const Register: Component = () => {
               Contact with Admin for Approval
             </div>
             <p class="auth-header__subtitle" style={{ "font-size": '14px', "color": '#94a3b8', "line-height": '1.5' }}>
-              আপনার ইমেল যাচাই সম্পন্ন হয়েছে। একাউন্ট সক্রিয় করতে অ্যাডমিনের অনুমোদন প্রয়োজন।
+              আপনার রেজিস্ট্রেশন তথ্য সফলভাবে জমা হয়েছে। একাউন্ট সক্রিয় করতে অ্যাডমিনের অনুমোদন প্রয়োজন।
             </p>
           </div>
 
@@ -322,11 +241,11 @@ const Register: Component = () => {
                 'margin-bottom': '20px',
               }}
             >
-              📢 অ্যাডমিন অনুমোদন দেওয়া মাত্র আপনার ইমেলে কনফার্মেশন নোটিফিকেশন পৌঁছে যাবে এবং আপনি <strong>gateway.writerify.org</strong> এ লগইন করতে পারবেন।
+              📢 অ্যাডমিন অনুমোদন দেওয়া মাত্র আপনি আপনার ইমেল ও পাসওয়ার্ড দিয়ে সরাসরি <strong>gateway.writerify.org</strong> এ লগইন করতে পারবেন।
             </div>
 
             <a
-              href={`mailto:itstasdidnur@gmail.com?subject=Approval%20Request%20for%20Writerify%20Gateway%20-${encodeURIComponent(email())}&body=Hello%20Boss%20TN%20TAYYAB,%0D%0A%0D%0AMy%20name%20is%20${encodeURIComponent(name())}%20and%20I%20have%20verified%20my%20email%20(${encodeURIComponent(email())}).%0D%0APlease%20approve%20my%20account%20on%20Writerify%20Gateway.%0D%0A%0D%0AThank%20you!`}
+              href={`mailto:itstasdidnur@gmail.com?subject=Approval%20Request%20for%20Writerify%20Gateway%20-${encodeURIComponent(email())}&body=Hello%20Boss%20TN%20TAYYAB,%0D%0A%0D%0AMy%20name%20is%20${encodeURIComponent(name())}%20and%20I%20have%20registered%20for%20an%20account%20(${encodeURIComponent(email())}).%0D%0APlease%20approve%20my%20account%20on%20Writerify%20Gateway.%0D%0A%0D%0AThank%20you!`}
               class="auth-form__submit"
               style={{
                 display: 'block',
@@ -358,83 +277,6 @@ const Register: Component = () => {
               }}
             >
               Go to Sign In
-            </A>
-          </div>
-        </Show>
-
-        {/* ======================================================== */}
-        {/* STEP 2: ENTER VERIFICATION CODE (OTP)                    */}
-        {/* ======================================================== */}
-        <Show when={step() === 'otp'}>
-          <div class="auth-header">
-            <h1 class="auth-header__title">Enter Verification Code</h1>
-            <p class="auth-header__subtitle">
-              We sent a 6-digit code to <strong style={{ color: '#38bdf8' }}>{email()}</strong>
-            </p>
-          </div>
-
-          <form class="auth-form" onSubmit={handleVerifyOtp}>
-            <Show when={error()}>
-              <div id={errorId} class="auth-form__error" role="alert">
-                {error()}
-              </div>
-            </Show>
-
-            <label class="auth-form__label" for={otpId}>
-              6-Digit Verification Code
-              <input
-                ref={(el) => requestAnimationFrame(() => el.focus())}
-                id={otpId}
-                class="auth-form__input"
-                type="text"
-                inputmode="numeric"
-                maxlength="6"
-                placeholder="• • • • • •"
-                value={otpCode()}
-                onInput={(e) => setOtpCode(e.currentTarget.value.replace(/\D/g, ''))}
-                required
-                style={{
-                  'font-family': 'monospace, monospace',
-                  'font-size': '24px',
-                  'letter-spacing': '10px',
-                  'text-align': 'center',
-                  padding: '12px',
-                }}
-              />
-            </label>
-
-            <button class="auth-form__submit" type="submit" disabled={loading()}>
-              {loading() ? <span class="spinner" /> : 'Verify Code & Continue'}
-            </button>
-
-            <div style={{ display: 'flex', "justify-content": 'space-between', "align-items": 'center', "margin-top": '16px' }}>
-              <button
-                type="button"
-                class="auth-form__link-btn"
-                onClick={handleResendOtp}
-                disabled={resendCooldown() > 0 || loading()}
-              >
-                {resendCooldown() > 0
-                  ? `Resend in ${resendCooldown()}s`
-                  : 'Resend code'}
-              </button>
-
-              <button
-                type="button"
-                class="auth-form__link-btn"
-                onClick={() => {
-                  setStep('form');
-                  setError('');
-                }}
-              >
-                Change Email
-              </button>
-            </div>
-          </form>
-
-          <div class="auth-footer">
-            <A href={appendSearch('/login', location.search)} class="auth-footer__link">
-              Back to sign in
             </A>
           </div>
         </Show>
@@ -538,7 +380,7 @@ const Register: Component = () => {
             </label>
 
             <button class="auth-form__submit" type="submit" disabled={loading()}>
-              {loading() ? <span class="spinner" /> : 'Get Verification Code'}
+              {loading() ? <span class="spinner" /> : 'Create Account & Request Approval'}
             </button>
           </form>
 
