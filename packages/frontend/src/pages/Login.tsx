@@ -84,7 +84,7 @@ const Login: Component = () => {
         lowMsg.includes('access denied') ||
         lowMsg.includes('pending')
       ) {
-        setError('Your account is pending Admin approval. Please contact Boss TN TAYYAB (itstasdidnur@gmail.com) for activation.');
+        setError('Your account is pending Admin approval. Please contact Writerify (itsinjamul@gmail.com) for activation.');
         return;
       }
       if (

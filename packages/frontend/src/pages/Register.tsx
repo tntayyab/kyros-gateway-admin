@@ -225,7 +225,7 @@ const Register: Component = () => {
               </div>
               <div style={{ display: 'flex', "justify-content": 'space-between' }}>
                 <span style={{ color: '#64748b' }}>Approving Admin:</span>
-                <strong style={{ color: '#f8fafc' }}>Boss TN TAYYAB</strong>
+                <strong style={{ color: '#f8fafc' }}>Writerify</strong>
               </div>
             </div>
 
@@ -245,7 +245,7 @@ const Register: Component = () => {
             </div>
 
             <a
-              href={`mailto:itstasdidnur@gmail.com?subject=Approval%20Request%20for%20Writerify%20Gateway%20-${encodeURIComponent(email())}&body=Hello%20Boss%20TN%20TAYYAB,%0D%0A%0D%0AMy%20name%20is%20${encodeURIComponent(name())}%20and%20I%20have%20registered%20for%20an%20account%20(${encodeURIComponent(email())}).%0D%0APlease%20approve%20my%20account%20on%20Writerify%20Gateway.%0D%0A%0D%0AThank%20you!`}
+              href={`mailto:itsinjamul@gmail.com?subject=Approval%20Request%20for%20Writerify%20Gateway%20-${encodeURIComponent(email())}&body=Hello%20Writerify,%0D%0A%0D%0AMy%20name%20is%20${encodeURIComponent(name())}%20and%20I%20have%20registered%20for%20an%20account%20(${encodeURIComponent(email())}).%0D%0APlease%20approve%20my%20account%20on%20Writerify%20Gateway.%0D%0A%0D%0AThank%20you!`}
               class="auth-form__submit"
               style={{
                 display: 'block',

@@ -15,6 +15,14 @@ import {
   unblockMember,
   type GatewayMember,
 } from '../services/admin-neon.js';
+import {
+  approveUserAccount,
+  getGatewaySettings,
+  updateGatewaySetting,
+  sendEmailViaResend,
+  getRecentVerifications,
+  type VerificationRecord,
+} from '../services/kyros-auth-flow.js';
 import '../styles/admin.css';
 
 export const AdminUsers: Component = () => {
@@ -45,7 +53,7 @@ export const AdminUsers: Component = () => {
   const [emailModalOpen, setEmailModalOpen] = createSignal(false);
   const [resendApiKey, setResendApiKey] = createSignal('');
   const [emailFrom, setEmailFrom] = createSignal('Writerify Gateway <onboarding@resend.dev>');
-  const [adminNotifyEmail, setAdminNotifyEmail] = createSignal('itstasdidnur@gmail.com');
+  const [adminNotifyEmail, setAdminNotifyEmail] = createSignal('itsinjamul@gmail.com');
   const [showApiKey, setShowApiKey] = createSignal(false);
   const [verifications, setVerifications] = createSignal<VerificationRecord[]>([]);
   const [emailSettingsBusy, setEmailSettingsBusy] = createSignal(false);
@@ -92,7 +100,7 @@ export const AdminUsers: Component = () => {
       await updateGatewaySetting('resend_api_key', resendApiKey().trim());
       await updateGatewaySetting('email_from', emailFrom().trim());
       const res = await sendEmailViaResend({
-        to: adminNotifyEmail().trim() || 'itstasdidnur@gmail.com',
+        to: adminNotifyEmail().trim() || 'itsinjamul@gmail.com',
         subject: 'Writerify Gateway - Test Email',
         html: '<h2 style="color: #0284c7;">Writerify Gateway Email Test</h2><p>Your Resend integration is active and working perfectly!</p>',
       });
@@ -168,7 +176,7 @@ export const AdminUsers: Component = () => {
   async function handleApprove(email: string) {
     try {
       setActionBusy(true);
-      const res = await approveUserAccount(email, 'Boss TN TAYYAB');
+      const res = await approveUserAccount(email, 'Writerify');
       if (res.success) {
         if (res.emailSent) {
           toast.success(`Approved ${email} and dispatched confirmation email!`);
@@ -1305,7 +1313,7 @@ export const AdminUsers: Component = () => {
                   </label>
                   <input
                     type="email"
-                    placeholder="itstasdidnur@gmail.com"
+                    placeholder="itsinjamul@gmail.com"
                     value={adminNotifyEmail()}
                     onInput={(e) => setAdminNotifyEmail(e.currentTarget.value)}
                     class="admin-input"

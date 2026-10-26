@@ -106,7 +106,7 @@ export async function sendEmailViaResend(options: {
       console.warn('[Resend] No RESEND_API_KEY set in kyros_gateway_settings.');
       return {
         success: false,
-        error: 'Resend API key is not configured in Admin Settings. (Contact Boss TN TAYYAB)',
+        error: 'Resend API key is not configured in Admin Settings. (Contact Writerify Admin)',
       };
     }
 
@@ -249,7 +249,7 @@ export function buildApprovalEmailHtml(name: string, email: string): string {
                   Hello <strong>${name || 'Member'}</strong>,
                 </p>
                 <p style="margin: 0 0 20px 0; font-size: 14px; color: #94a3b8; line-height: 1.6;">
-                  Great news! Your Writerify Gateway account (<strong>${email}</strong>) has been reviewed and <strong style="color: #4ade80;">approved by Admin (Boss TN TAYYAB)</strong>.
+                  Great news! Your Writerify Gateway account (<strong>${email}</strong>) has been reviewed and <strong style="color: #4ade80;">approved by Writerify</strong>.
                 </p>
                 <p style="margin: 0 0 28px 0; font-size: 14px; color: #94a3b8; line-height: 1.6;">
                   You now have full access to our multi-model AI routing, high-performance harnesses, fallback engines, and intelligent playground.
@@ -263,7 +263,7 @@ export function buildApprovalEmailHtml(name: string, email: string): string {
                 </div>
 
                 <div style="background-color: #0f172a; border-radius: 8px; padding: 16px; font-size: 13px; color: #64748b; line-height: 1.5;">
-                  <strong>Quick tip:</strong> Sign in with your registered email and password. If you ever need help, reach out directly to Admin at <a href="mailto:itstasdidnur@gmail.com" style="color: #38bdf8; text-decoration: none;">itstasdidnur@gmail.com</a>.
+                  <strong>Quick tip:</strong> Sign in with your registered email and password. If you ever need help, reach out directly to Admin at <a href="mailto:itsinjamul@gmail.com" style="color: #38bdf8; text-decoration: none;">itsinjamul@gmail.com</a>.
                 </div>
               </td>
             </tr>
@@ -481,7 +481,7 @@ export async function verifyRegistrationOtp(
 // -------------------------------------------------------------
 export async function approveUserAccount(
   email: string,
-  approver = 'Boss TN TAYYAB'
+  approver = 'Writerify'
 ): Promise<{ success: boolean; error?: string; emailSent?: boolean }> {
   const cleanEmail = email.trim().toLowerCase();
   const escapedEmail = cleanEmail.replace(/'/g, "''");
@@ -559,7 +559,7 @@ export async function approveUserAccount(
     to: cleanEmail,
     subject: '🎉 Congratulations! Your Writerify Gateway Account is Approved',
     html: approvalHtml,
-    text: `Hello ${userName}, your Writerify Gateway account has been approved by Boss TN TAYYAB. You can now log in at https://gateway.writerify.org/login`,
+    text: `Hello ${userName}, your Writerify Gateway account has been approved by Writerify. You can now log in at https://gateway.writerify.org/login`,
   });
 
   return {
