@@ -137,7 +137,7 @@ const parsedProviderTimeout = Number.parseInt(process.env.PROVIDER_TIMEOUT_MS ??
 const PROVIDER_TIMEOUT_MS =
   Number.isFinite(parsedProviderTimeout) && parsedProviderTimeout > 0
     ? parsedProviderTimeout
-    : 180_000;
+    : 35_000;
 const QWEN_TOKEN_PLAN_RESPONSES_RE = /^qwen3\.7-max$/i;
 const COPILOT_CHAT_COMPLETIONS_ENDPOINT = '/chat/completions';
 const COPILOT_RESPONSES_ENDPOINTS = new Set(['/responses', 'ws:/responses']);
