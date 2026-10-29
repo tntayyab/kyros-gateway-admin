@@ -41,29 +41,30 @@ export const AdminOverview: Component = () => {
     onCleanup(() => clearInterval(interval));
   });
 
-  // KPI Calculations
+  // KPI Calculations from Live Neon DB Stats
   const approvedUsers = () => members().filter((m) => m.status === 'approved');
-  const activeCount = () => approvedUsers().length;
+  const activeCount = () =>
+    members().filter((m) => (Number(m.requests_count) || 0) > 0).length;
   const totalUsers = () => members().length;
 
-  // Total synthetic or recorded output metrics based on users
+  // Total live requests sum directly from agent_messages
   const totalRequests = () => {
-    const base = approvedUsers().reduce((acc, m) => {
-      if (m.plan === 'owner') return acc + 12450;
-      if (m.plan === 'max') return acc + 8920;
-      if (m.plan === 'growth') return acc + 3410;
-      if (m.plan === 'starter') return acc + 1200;
-      return acc + 150;
-    }, 0);
-    return base > 0 ? base : 1420;
+    return members().reduce((acc, m) => acc + (Number(m.requests_count) || 0), 0);
   };
 
+  // Total live tokens sum directly from agent_messages
   const totalTokensFormatted = () => {
-    const tokens = totalRequests() * 1850;
+    const tokens = members().reduce((acc, m) => acc + (Number(m.tokens_count) || 0), 0);
+    if (tokens >= 1_000_000_000) {
+      return (tokens / 1_000_000_000).toFixed(1) + 'B';
+    }
     if (tokens >= 1_000_000) {
       return (tokens / 1_000_000).toFixed(1) + 'M';
     }
-    return (tokens / 1_000).toFixed(0) + 'K';
+    if (tokens >= 1_000) {
+      return (tokens / 1_000).toFixed(0) + 'K';
+    }
+    return tokens.toLocaleString();
   };
 
   const filteredMembers = () => {
@@ -82,6 +83,80 @@ export const AdminOverview: Component = () => {
       );
     }
     return list;
+  };
+
+  // Sorted descending by highest requests count, then tokens count
+  const sortedMembers = () => {
+    return [...filteredMembers()].sort((a, b) => {
+      const reqA = Number(a.requests_count) || 0;
+      const reqB = Number(b.requests_count) || 0;
+      if (reqB !== reqA) {
+        return reqB - reqA;
+      }
+      const tokA = Number(a.tokens_count) || 0;
+      const tokB = Number(b.tokens_count) || 0;
+      return tokB - tokA;
+    });
+  };
+
+  const formatRelativeTime = (dateStr?: string | null): string => {
+    if (!dateStr) return 'Never';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return 'Never';
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHours = Math.floor(diffMin / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffSec < 60) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const formatProviderName = (name: string): string => {
+    const lower = name.toLowerCase();
+    if (lower === 'openrouter') return 'OpenRouter';
+    if (lower === 'nararouter') return 'NaraRouter';
+    if (lower === 'xkiro') return 'Xkiro';
+    if (lower === 'oxion') return 'Oxion';
+    if (lower === 'river') return 'River';
+    if (lower === 'anthropic' || lower === 'claude') return 'Claude';
+    if (lower === 'openai' || lower === 'gpt') return 'OpenAI';
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  };
+
+  const getProviderBadgeStyle = (name: string) => {
+    const p = name.toLowerCase();
+    if (p.includes('river')) {
+      return {
+        background: 'rgba(5, 150, 105, 0.1)',
+        color: '#059669',
+        border: '1px solid rgba(5, 150, 105, 0.3)',
+      };
+    }
+    if (p.includes('openrouter') || p.includes('nararouter')) {
+      return {
+        background: 'rgba(2, 132, 199, 0.1)',
+        color: '#0284c7',
+        border: '1px solid rgba(2, 132, 199, 0.3)',
+      };
+    }
+    if (p.includes('oxion') || p.includes('xkiro')) {
+      return {
+        background: 'rgba(147, 51, 234, 0.1)',
+        color: '#9333ea',
+        border: '1px solid rgba(147, 51, 234, 0.3)',
+      };
+    }
+    return {
+      background: 'hsl(var(--muted))',
+      color: 'hsl(var(--foreground))',
+      border: '1px solid hsl(var(--border))',
+    };
   };
 
   const getPlanBadgeClass = (plan: string) => {
@@ -575,7 +650,7 @@ export const AdminOverview: Component = () => {
               </thead>
               <tbody>
                 <Show
-                  when={!loading() && filteredMembers().length > 0}
+                  when={!loading() && sortedMembers().length > 0}
                   fallback={
                     <tr>
                       <td
@@ -591,17 +666,10 @@ export const AdminOverview: Component = () => {
                     </tr>
                   }
                 >
-                  <For each={filteredMembers()}>
+                  <For each={sortedMembers()}>
                     {(m, index) => {
-                      const userReqs =
-                        m.plan === 'owner'
-                          ? 12450
-                          : m.plan === 'max'
-                            ? 8920
-                            : m.plan === 'growth'
-                              ? 3410
-                              : 150;
-                      const userTokens = (userReqs * 1850).toLocaleString();
+                      const userReqs = Number(m.requests_count) || 0;
+                      const userTokens = (Number(m.tokens_count) || 0).toLocaleString();
                       const signupDate = m.created_at
                         ? new Date(m.created_at).toLocaleDateString('en-US', {
                             month: 'short',
@@ -609,6 +677,7 @@ export const AdminOverview: Component = () => {
                             year: 'numeric',
                           })
                         : 'Oct 24, 2026';
+                      const providersList = (m.connected_providers || []).filter(Boolean);
 
                       return (
                         <tr>
@@ -651,41 +720,48 @@ export const AdminOverview: Component = () => {
 
                           {/* Connected Providers */}
                           <td>
-                            <div style={{ display: 'flex', gap: '6px', 'flex-wrap': 'wrap' }}>
-                              <span
-                                style={{
-                                  'font-size': '11px',
-                                  background: 'hsl(var(--muted))',
-                                  color: '#0284c7',
-                                  padding: '2px 7px',
-                                  'border-radius': '4px',
-                                  border: '1px solid hsl(var(--border))',
-                                  'font-weight': '600',
-                                }}
-                              >
-                                OpenRouter
-                              </span>
-                              <span
-                                style={{
-                                  'font-size': '11px',
-                                  background: 'hsl(var(--muted))',
-                                  color: '#059669',
-                                  padding: '2px 7px',
-                                  'border-radius': '4px',
-                                  border: '1px solid hsl(var(--border))',
-                                  'font-weight': '600',
-                                }}
-                              >
-                                River
-                              </span>
-                            </div>
+                            <Show
+                              when={providersList.length > 0}
+                              fallback={
+                                <span
+                                  style={{
+                                    'font-size': '12px',
+                                    color: 'hsl(var(--muted-foreground))',
+                                    'font-style': 'italic',
+                                  }}
+                                >
+                                  No providers connected
+                                </span>
+                              }
+                            >
+                              <div style={{ display: 'flex', gap: '6px', 'flex-wrap': 'wrap' }}>
+                                <For each={providersList}>
+                                  {(prov) => {
+                                    const style = getProviderBadgeStyle(prov);
+                                    return (
+                                      <span
+                                        style={{
+                                          'font-size': '11px',
+                                          padding: '2px 7px',
+                                          'border-radius': '4px',
+                                          'font-weight': '600',
+                                          ...style,
+                                        }}
+                                      >
+                                        {formatProviderName(prov)}
+                                      </span>
+                                    );
+                                  }}
+                                </For>
+                              </div>
+                            </Show>
                           </td>
 
                           {/* Last Active */}
                           <td
                             style={{ 'font-size': '12px', color: 'hsl(var(--muted-foreground))' }}
                           >
-                            Just now
+                            {formatRelativeTime(m.last_active)}
                           </td>
 
                           {/* Signed Up */}

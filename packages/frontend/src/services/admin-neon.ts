@@ -16,6 +16,10 @@ export interface GatewayMember {
   is_email_verified?: boolean;
   created_at?: string;
   updated_at?: string;
+  requests_count?: number;
+  tokens_count?: number | string;
+  connected_providers?: string[];
+  last_active?: string | null;
 }
 
 export const NEON_SQL_URL = 'https://ep-sparkling-violet-b5wgue4f.c-7.us-east-2.aws.neon.tech/sql';
@@ -43,23 +47,48 @@ export async function execAdminSql<T = any>(query: string): Promise<T[]> {
 export async function getAllMembers(): Promise<GatewayMember[]> {
   const query = `
     SELECT 
-      id, email, name, role, status, approved_by, notes,
-      mobile, COALESCE(plan, 'free_trial') as plan,
-      COALESCE(agreed_price, 0) as agreed_price,
-      COALESCE(paid_amount, 0) as paid_amount,
-      anydesk_id,
-      COALESCE(is_earning, false) as is_earning,
-      COALESCE(is_supported, false) as is_supported,
-      COALESCE(is_email_verified, false) as is_email_verified,
-      created_at, updated_at
-    FROM public.kyros_access_control
+      m.id, m.email, m.name, m.role, m.status, m.approved_by, m.notes,
+      m.mobile, COALESCE(m.plan, 'free_trial') as plan,
+      COALESCE(m.agreed_price, 0) as agreed_price,
+      COALESCE(m.paid_amount, 0) as paid_amount,
+      m.anydesk_id,
+      COALESCE(m.is_earning, false) as is_earning,
+      COALESCE(m.is_supported, false) as is_supported,
+      COALESCE(m.is_email_verified, false) as is_email_verified,
+      m.created_at, m.updated_at,
+      COALESCE(stats.req_count, 0)::int as requests_count,
+      COALESCE(stats.total_tokens, 0)::bigint as tokens_count,
+      COALESCE(prov.providers_json, '[]'::json) as connected_providers,
+      stats.last_active
+    FROM public.kyros_access_control m
+    LEFT JOIN public."user" u ON LOWER(u.email) = LOWER(m.email)
+    LEFT JOIN public.tenants t ON t.owner_user_id = u.id
+    LEFT JOIN (
+      SELECT 
+        tenant_id,
+        COUNT(*) as req_count,
+        SUM(input_tokens + output_tokens) as total_tokens,
+        MAX(timestamp) as last_active
+      FROM public.agent_messages
+      GROUP BY tenant_id
+    ) stats ON stats.tenant_id = t.id
+    LEFT JOIN (
+      SELECT 
+        tp.tenant_id,
+        json_agg(DISTINCT COALESCE(cp.name, tp.provider)) FILTER (WHERE COALESCE(cp.name, tp.provider) IS NOT NULL AND COALESCE(cp.name, tp.provider) <> '') as providers_json
+      FROM public.tenant_providers tp
+      LEFT JOIN public.custom_providers cp ON tp.custom_provider_id = cp.id
+      WHERE tp.is_active = true
+      GROUP BY tp.tenant_id
+    ) prov ON prov.tenant_id = t.id
     ORDER BY 
       CASE 
-        WHEN status = 'pending' THEN 1
-        WHEN status = 'approved' THEN 2
+        WHEN m.status = 'pending' THEN 1
+        WHEN m.status = 'approved' THEN 2
         ELSE 3
       END,
-      updated_at DESC;
+      requests_count DESC,
+      m.updated_at DESC;
   `;
   return execAdminSql<GatewayMember>(query);
 }
