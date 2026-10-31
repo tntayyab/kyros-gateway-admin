@@ -414,6 +414,8 @@
   justify-content: center;
   font-size: var(--font-size-xs);
   font-weight: 600;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .header__dropdown {

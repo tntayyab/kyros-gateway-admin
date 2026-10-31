@@ -24,6 +24,7 @@ import {
 } from '../services/connection-breadcrumb-store.js';
 import { providerIcon } from './ProviderIcon.jsx';
 import DuplicateAgentModal from './DuplicateAgentModal.jsx';
+import { getUserProfile, type UserProfile } from '../services/user-profile.js';
 
 const GITHUB_REPO = 'mnfst/llm-gateway';
 const STAR_DISMISSED_KEY = 'github-star-dismissed';
@@ -49,6 +50,7 @@ const Header: Component<HeaderProps> = (props) => {
     sessionStorage.getItem(STAR_DISMISSED_KEY) === 'true',
   );
   const [isSelfHosted, setIsSelfHosted] = createSignal(false);
+  const [avatarUrl, setAvatarUrl] = createSignal<string | null>(null);
   const session = authClient.useSession();
   const navigate = useNavigate();
   const [billing] = createResource(async () => {
@@ -60,8 +62,35 @@ const Header: Component<HeaderProps> = (props) => {
   });
   const isPro = () => billing()?.enabled && billing()?.plan === 'pro';
 
+  // Synchronize avatar with User Profile (from Neon DB / Local Cache)
+  createEffect(() => {
+    const email = user()?.email;
+    const name = effectiveName();
+    if (email) {
+      void (async () => {
+        try {
+          const prof = await getUserProfile(email, name);
+          if (prof?.avatar_url) {
+            setAvatarUrl(prof.avatar_url);
+          }
+        } catch {}
+      })();
+    }
+  });
+
   onMount(() => {
     checkIsSelfHosted().then(setIsSelfHosted);
+
+    const handleProfileUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<UserProfile>;
+      if (customEvent.detail?.avatar_url) {
+        setAvatarUrl(customEvent.detail.avatar_url);
+      }
+    };
+    window.addEventListener('kyros-profile-updated', handleProfileUpdate);
+    onCleanup(() => {
+      window.removeEventListener('kyros-profile-updated', handleProfileUpdate);
+    });
     if (!starDismissed()) {
       const cachedCount = sessionStorage.getItem(STAR_CACHE_KEY);
       const cachedTs = sessionStorage.getItem(STAR_CACHE_TS_KEY);
@@ -355,18 +384,52 @@ const Header: Component<HeaderProps> = (props) => {
             aria-haspopup="menu"
             aria-expanded={menuOpen()}
           >
-            <div class="header__avatar">{initials()}</div>
+            <Show
+              when={avatarUrl()}
+              fallback={<div class="header__avatar">{initials()}</div>}
+            >
+              <img
+                src={avatarUrl()!}
+                alt={effectiveName()}
+                class="header__avatar"
+                style={{
+                  'object-fit': 'cover',
+                  display: 'block',
+                  border: '1px solid hsl(var(--border))',
+                }}
+                onError={() => setAvatarUrl(null)}
+              />
+            </Show>
           </button>
           <Show when={menuOpen()}>
             <div class="header__dropdown" role="menu">
-              <div class="header__dropdown-header">
-                <span class="header__dropdown-name">
-                  {effectiveName()}
-                  <Show when={isPro()}>
-                    <span class="header__pro-badge">PRO</span>
-                  </Show>
-                </span>
-                <span class="header__dropdown-email">{user()?.email ?? ''}</span>
+              <div
+                class="header__dropdown-header"
+                style={{ display: 'flex', 'align-items': 'center', gap: '10px' }}
+              >
+                <Show when={avatarUrl()}>
+                  <img
+                    src={avatarUrl()!}
+                    alt={effectiveName()}
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      'border-radius': '50%',
+                      'object-fit': 'cover',
+                      border: '1px solid hsl(var(--border))',
+                      'flex-shrink': '0',
+                    }}
+                  />
+                </Show>
+                <div style={{ 'min-width': '0', flex: '1' }}>
+                  <span class="header__dropdown-name">
+                    {effectiveName()}
+                    <Show when={isPro()}>
+                      <span class="header__pro-badge">PRO</span>
+                    </Show>
+                  </span>
+                  <span class="header__dropdown-email">{user()?.email ?? ''}</span>
+                </div>
               </div>
               <div class="header__dropdown-divider" />
               <A

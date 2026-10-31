@@ -134,6 +134,15 @@ const Account: Component = () => {
       const compressedDataUrl = await compressImageFile(file, 360, 360, 0.82);
       setProfileAvatarUrl(compressedDataUrl);
       toast.success('Profile photo uploaded & optimized successfully!');
+      // Dispatch immediate update so Header avatar updates in real-time
+      window.dispatchEvent(
+        new CustomEvent('kyros-profile-updated', {
+          detail: {
+            email: userEmail() || 'itstasdidnur@gmail.com',
+            avatar_url: compressedDataUrl,
+          },
+        }),
+      );
     } catch {
       toast.error('Failed to load profile photo');
     } finally {
@@ -550,7 +559,17 @@ const Account: Component = () => {
                     <button
                       type="button"
                       class={`profile-preset-card ${profileAvatarUrl() === preset.url ? 'profile-preset-card--active' : ''}`}
-                      onClick={() => setProfileAvatarUrl(preset.url)}
+                      onClick={() => {
+                        setProfileAvatarUrl(preset.url);
+                        window.dispatchEvent(
+                          new CustomEvent('kyros-profile-updated', {
+                            detail: {
+                              email: userEmail() || 'itstasdidnur@gmail.com',
+                              avatar_url: preset.url,
+                            },
+                          }),
+                        );
+                      }}
                     >
                       <img
                         src={preset.url}
